@@ -1,10 +1,119 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>ShiroBird · Network Visibility</title><link rel="stylesheet" href="style.css"><script src="app.js" defer></script></head>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>ShiroBird · NetBird observability</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
 <body>
-<header><div class="brand"><span class="logo">S</span><div><strong>ShiroBird</strong><small>Independent NetBird observability</small></div></div><div class="actions"><span id="connection" class="status">Offline</span><button id="logout" class="secondary">Log out</button></div></header>
-<main><section class="hero"><div><small class="eyebrow">TELEMETRY OVERVIEW</small><h1>Network activity</h1><p>Flow events from deployed sensors. Your NetBird installation stays untouched.</p></div><div class="actions"><a href="api/export.csv" class="button">Export CSV</a><a href="api/export.ndjson" class="button secondary">Export JSONL</a></div></section>
-<section class="stats"><article><span>Total events</span><strong id="total">—</strong></article><article><span>Last 24 hours</span><strong id="day">—</strong></article><article><span>Reporting sensors</span><strong id="sensors">—</strong></article><article><span>Last observed</span><strong id="latest">—</strong></article></section>
-<section class="panel"><div class="panelhead"><div><h2>Live flow events</h2><p>Metadata only. No payload inspection.</p></div><div class="actions"><input id="filter" type="search" aria-label="Filter flows" placeholder="Filter IP, sensor, protocol"><button id="refresh" class="secondary">Refresh</button></div></div>
-<div class="tablewrap"><table><thead><tr><th>Time</th><th>Sensor</th><th>Event</th><th>Protocol</th><th>Source</th><th>Destination</th><th>Bytes</th></tr></thead><tbody id="flows"><tr><td colspan="7">No flow events yet</td></tr></tbody></table></div></section><footer>ShiroBird 0.1 · Independent community project · Not affiliated with NetBird</footer></main>
-<div id="auth" class="overlay"><form id="form" class="login"><span class="logo">S</span><h2>Welcome to ShiroBird</h2><p>Enter the administrator token generated locally during installation.</p><label for="token">Admin token</label><input id="token" type="password" autocomplete="off" required><p id="error" class="error" role="alert"></p><button type="submit">Sign in</button><small>Use HTTPS. Never publish credentials on GitHub.</small></form></div>
-</body></html>
+  <header>
+    <div class="brand"><span class="logo">S</span>
+      <div><strong>ShiroBird</strong><small>NetBird observability</small></div>
+    </div>
+    <div class="actions"><span id="connection" class="status">Offline</span>
+      <button id="logout" type="button" class="secondary">Log out</button>
+    </div>
+  </header>
+  <main>
+    <section id="traffic-view">
+      <div class="hero">
+        <div><small class="eyebrow">SHIROBIRD</small><h1>Traffic Flow</h1>
+          <p>Live network connection metadata from ShiroBird collectors.</p>
+        </div>
+        <div class="actions">
+          <a href="api/export.csv" class="button secondary">Export CSV</a>
+          <a href="api/export.ndjson" class="button secondary">Export JSONL</a>
+        </div>
+      </div>
+      <section class="stats" aria-label="Traffic summary">
+        <article><span>Total events</span><strong id="total">—</strong></article>
+        <article><span>Last 24 hours</span><strong id="day">—</strong></article>
+        <article><span>Reporting sensors</span><strong id="sensors">—</strong></article>
+        <article><span>Last observed</span><strong id="latest">—</strong></article>
+      </section>
+      <section class="panel">
+        <div class="panelhead">
+          <div><h2>Network flow events</h2><p>Metadata only. No packet payloads.</p></div>
+          <div class="actions"><input id="filter" type="search" aria-label="Filter flows"
+            placeholder="Filter IP, sensor, protocol">
+            <button id="refresh" class="secondary" type="button">Refresh</button>
+          </div>
+        </div>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Time</th><th>Sensor</th><th>Event</th><th>Protocol</th>
+              <th>Source</th><th>Destination</th><th>Bytes</th></tr></thead>
+            <tbody id="flows"><tr><td colspan="7">No flow events yet</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section id="siem-view" hidden>
+      <div class="hero">
+        <div><small class="eyebrow">SHIROBIRD</small><h1>SIEM Integration</h1>
+          <p>Configure event ingestion in Wazuh or another SIEM and inspect export readiness.</p>
+        </div>
+        <div class="actions"><button id="siem-refresh" type="button" class="secondary">Refresh status</button>
+          <a href="api/export.ndjson" class="button secondary">Download JSONL</a>
+        </div>
+      </div>
+      <section class="stats" aria-label="SIEM export status">
+        <article><span>JSONL file exporter</span><strong id="siem-jsonl">—</strong></article>
+        <article><span>Events in database</span><strong id="siem-events">—</strong></article>
+        <article><span>Syslog UDP</span><strong id="siem-syslog">—</strong></article>
+        <article><span>Remote SIEM ingestion</span><strong id="siem-delivery">Not verified</strong></article>
+      </section>
+      <div class="siem-grid">
+        <section class="panel">
+          <div class="panelhead"><div><h2>Wazuh integration</h2>
+            <p>Read ShiroBird's local JSONL using a Wazuh agent on the server.</p></div></div>
+          <div class="siem-body">
+            <p>For the default installation, configure the Wazuh agent's
+              <code>/var/ossec/etc/ossec.conf</code> using the absolute path to
+              your ShiroBird directory:</p>
+            <pre id="wazuh-example">&lt;localfile&gt;
+  &lt;log_format&gt;json&lt;/log_format&gt;
+  &lt;location&gt;/path/to/ShiroBird/data/siem/events.jsonl&lt;/location&gt;
+&lt;/localfile&gt;</pre>
+            <div class="actions"><button id="copy-wazuh" type="button" class="secondary">Copy configuration</button></div>
+            <p class="siem-note">Restart the Wazuh agent after configuration.
+              Confirm ingestion in Wazuh separately: ShiroBird cannot verify delivery automatically.</p>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panelhead"><div><h2>Exporter details</h2>
+            <p>Live status from the ShiroBird server.</p></div></div>
+          <div class="siem-body">
+            <dl class="siem-details">
+              <div><dt>Container export file</dt><dd id="siem-path">/data/siem/events.jsonl</dd></div>
+              <div><dt>Local JSONL size</dt><dd id="siem-size">—</dd></div>
+              <div><dt>Last file update</dt><dd id="siem-updated">—</dd></div>
+              <div><dt>Database retention</dt><dd id="siem-retention">—</dd></div>
+              <div><dt>Syslog transport</dt><dd id="siem-protocol">—</dd></div>
+            </dl>
+            <p class="siem-note">JSONL logs are separate from database retention.
+              Use the included logrotate rule and monitor free disk space.</p>
+            <p id="siem-error" class="error" role="status"></p>
+          </div>
+        </section>
+      </div>
+    </section>
+    <footer>ShiroBird · Independent community project, not affiliated with NetBird</footer>
+  </main>
+  <div id="auth" class="overlay">
+    <form id="form" class="login">
+      <span class="logo">S</span><h2>Welcome to ShiroBird</h2>
+      <p>Enter the administrator token generated locally during standalone installation.</p>
+      <label for="token">Admin token</label>
+      <input id="token" type="password" autocomplete="off" required>
+      <p id="error" class="error" role="alert"></p>
+      <button type="submit">Sign in</button>
+      <small>Use HTTPS and keep administrator credentials private.</small>
+    </form>
+  </div>
+</body>
+</html>
