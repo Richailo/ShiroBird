@@ -1,0 +1,35 @@
+services:
+  shirobird:
+    environment:
+      SHIROBIRD_EMBEDDED: "true"
+  shirobird-bridge:
+    image: nginx:stable-alpine
+    container_name: shirobird-bridge
+    restart: unless-stopped
+    depends_on:
+      shirobird:
+        condition: service_healthy
+    networks:
+      - default
+      - netbird-dashboard-network
+    ports:
+      - "${SHIROBIRD_BRIDGE_BIND:-127.0.0.1}:${SHIROBIRD_BRIDGE_PORT:-8082}:8080"
+    volumes:
+      - ./integration/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./integration/bridge.js:/usr/share/nginx/html/bridge.js:ro
+      - ./integration/bridge.css:/usr/share/nginx/html/bridge.css:ro
+    read_only: true
+    tmpfs: ["/var/cache/nginx:rw,nosuid,size=16m", "/var/run:rw,nosuid,size=2m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/shirobird-integration/bridge.js"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+networks:
+  netbird-dashboard-network:
+    external: true
+    name: ${SHIROBIRD_NETBIRD_NETWORK:-netbird_netbird}
