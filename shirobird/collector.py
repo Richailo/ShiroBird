@@ -1,0 +1,101 @@
+"""Passive Linux conntrack watcher. No changes to NetBird or firewall rules."""
+import ipaddress
+import json
+import os
+import queue
+import re
+import socket
+import subprocess
+import sys
+import threading
+import time
+from urllib.request import Request, urlopen
+
+URL = os.getenv("SHIROBIRD_SERVER_URL", "http://127.0.0.1:8666").rstrip("/") + "/api/ingest"
+TOKEN = os.getenv("SHIROBIRD_INGEST_TOKEN", "")
+SENSOR = os.getenv("SHIROBIRD_SENSOR", socket.gethostname())
+NETWORKS = [ipaddress.ip_network(x.strip(), strict=False) for x in
+            os.getenv("SHIROBIRD_NETWORKS", "100.64.0.0/10").split(",") if x.strip()]
+OUTPUT_LIMIT = 10000
+KEYVAL = re.compile(r"\b(src|dst|sport|dport|packets|bytes)=([^\s]+)")
+TYPE = re.compile(r"\[(NEW|DESTROY|UPDATE)\]")
+PROTOCOL = re.compile(r"\]\s*(tcp|udp|icmp|icmpv6|sctp)\b|^\s*(tcp|udp|icmp|icmpv6|sctp)\b", re.I)
+
+def parse_line(line, sensor=SENSOR, networks=None):
+    event = TYPE.search(line)
+    protocol = PROTOCOL.search(line)
+    if not event or not protocol:
+        return None
+    proto = (protocol.group(1) or protocol.group(2)).lower()
+    pairs = KEYVAL.findall(line)
+    groups = {}
+    for key, val in pairs:
+        groups.setdefault(key, []).append(val)
+    try:
+        src, dst = groups["src"][0], groups["dst"][0]
+        relevant = NETWORKS if networks is None else networks
+        if not any(ipaddress.ip_address(x) in net for x in (src, dst) for net in relevant):
+            return None
+        def value(key):
+            return int(groups.get(key, ["0"])[0])
+        obj = {"ts": int(time.time()), "type": event.group(1), "proto": proto,
+               "src": src, "dst": dst, "sport": value("sport"), "dport": value("dport"),
+               "packets": sum(int(x) for x in groups.get("packets", [])),
+               "bytes": sum(int(x) for x in groups.get("bytes", []))}
+        if event.group(1) == "DESTROY" and not groups.get("bytes"):
+            obj["bytes"] = 0
+        return obj
+    except (KeyError, ValueError):
+        return None
+
+def uploader(q):
+    pending = []
+    while True:
+        if not pending:
+            pending.append(q.get())
+        deadline = time.monotonic() + 0.5
+        while len(pending) < 100 and time.monotonic() < deadline:
+            try:
+                pending.append(q.get(timeout=max(0.01, deadline - time.monotonic())))
+            except queue.Empty:
+                break
+        body = json.dumps({"sensor": SENSOR, "events": pending}).encode()
+        req = Request(URL, data=body, headers={"Authorization": "Bearer " + TOKEN,
+                       "Content-Type": "application/json"}, method="POST")
+        try:
+            with urlopen(req, timeout=10) as response:
+                if response.status != 202:
+                    raise RuntimeError(f"unexpected status: {response.status}")
+            pending.clear()
+        except Exception as exc:
+            print(f"ShiroBird upload failed, retrying: {exc}", file=sys.stderr, flush=True)
+            time.sleep(5)
+
+def main():
+    if not TOKEN or len(TOKEN) < 32:
+        raise SystemExit("SHIROBIRD_INGEST_TOKEN must be 32+ characters")
+    q = queue.Queue(maxsize=OUTPUT_LIMIT)
+    threading.Thread(target=uploader, args=(q,), daemon=True).start()
+    while True:
+        try:
+            with subprocess.Popen(["conntrack", "-E", "-e", "NEW,DESTROY",
+                                   "-o", "timestamp,extended"],
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                  text=True, bufsize=1) as proc:
+                for line in proc.stdout:
+                    evt = parse_line(line)
+                    if evt is None:
+                        continue
+                    try:
+                        q.put_nowait(evt)
+                    except queue.Full:
+                        print("ShiroBird queue full: dropped flow", file=sys.stderr, flush=True)
+                err = proc.stderr.read(1500)
+                if err:
+                    print(f"conntrack exited: {err}", file=sys.stderr, flush=True)
+        except (OSError, ValueError) as exc:
+            print(f"conntrack unavailable: {exc}", file=sys.stderr, flush=True)
+        time.sleep(5)
+
+if __name__ == "__main__":
+    main()

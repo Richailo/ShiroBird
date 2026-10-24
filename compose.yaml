@@ -1,0 +1,21 @@
+services:
+  shirobird:
+    build: .
+    image: shirobird:local
+    container_name: shirobird
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SHIROBIRD_BIND: "0.0.0.0"
+      SHIROBIRD_PORT: "8666"
+      SHIROBIRD_DATA: "/data"
+    ports:
+      - "127.0.0.1:${SHIROBIRD_PORT:-8666}:8666"
+    volumes:
+      - ./data:/data
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=16m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 100
+    mem_limit: 256m
