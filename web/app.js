@@ -136,9 +136,42 @@ function renderAnalytics() {
   }
   $("flow-trend").replaceChildren(bars);
 }
+function renderSensors(data) {
+  const list = data.sensors || [];
+  const online = list.filter(sensor => sensor.online).length;
+  $("flow-sensor-count").textContent = online + " online / " + list.length + " registered";
+  const fragment = document.createDocumentFragment();
+  for (const item of list) {
+    const row = document.createElement("div");
+    row.className = "flow-sensor";
+    const name = document.createElement("strong");
+    name.textContent = item.name;
+    const state = document.createElement("span");
+    state.className = "flow-sensor-state" + (item.online ? " ready" : "");
+    state.textContent = item.online ? "Online" : "Offline";
+    const accounting = document.createElement("span");
+    accounting.textContent = item.accounting_enabled ?
+      "Packet / byte accounting enabled" : "Kernel byte accounting disabled";
+    accounting.className = "flow-sensor-hint";
+    const seen = document.createElement("small");
+    seen.textContent = "Last heartbeat: " + date(item.last_seen);
+    row.append(name, state, accounting, seen);
+    fragment.append(row);
+  }
+  if (!list.length) {
+    const message = document.createElement("p");
+    message.textContent = "No Linux collectors have reported yet. Install ShiroBird on the peers or routing hosts you want to observe.";
+    fragment.append(message);
+  }
+  $("flow-sensor-list").replaceChildren(fragment);
+}
 async function refreshAnalytics() {
   const windowMinutes = Number($("flow-window").value);
-  const data = await req("api/traffic/analytics?minutes=" + windowMinutes + "&limit=500");
+  const [data, sensorData] = await Promise.all([
+    req("api/traffic/analytics?minutes=" + windowMinutes + "&limit=500"),
+    req("api/traffic/sensors")
+  ]);
+  renderSensors(sensorData);
   flowSnapshot = data;
   $("flow-starts").textContent = fmt(data.total.starts);
   $("flow-ends").textContent = fmt(data.total.ends);
