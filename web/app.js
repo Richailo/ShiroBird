@@ -67,6 +67,7 @@ function groupMatches(row, filter, protocol) {
   if (protocol && row.proto !== protocol) return false;
   if (!filter) return true;
   return [row.src, row.dst, row.proto, row.sensor, row.dport,
+    row.source, row.direction, row.application, row.filter_id,
     peerByIP.get(row.src)?.name, peerByIP.get(row.dst)?.name]
     .some(part => String(part || "").toLowerCase().includes(filter));
 }
@@ -81,7 +82,11 @@ function renderAnalytics() {
     const values = [
       date(item.last_seen), endpoint(item.src), endpoint(item.dst),
       item.dport || "—", item.proto.toUpperCase(), item.sensor,
-      fmt(item.starts), fmt(item.ends), humanBytes(item.bytes)
+      item.source === "windows_wfp" ? "Windows WFP" : "Linux conntrack",
+      item.direction || "unknown",
+      [item.application, item.filter_id ? "filter #" + item.filter_id : ""].filter(Boolean).join(" · ") || "—",
+      fmt(item.starts), fmt(item.allows || 0), fmt(item.blocks || 0),
+      fmt(item.drops || 0), fmt(item.ends), humanBytes(item.bytes)
     ];
     for (const value of values) {
       const td = document.createElement("td");
@@ -90,7 +95,7 @@ function renderAnalytics() {
     }
     nodes.append(tr);
   }
-  if (!rows.length) nodes.append(makeEmptyRow(9, "No observed traffic for these filters"));
+  if (!rows.length) nodes.append(makeEmptyRow(15, "No observed traffic for these filters"));
   $("flow-groups").replaceChildren(nodes);
   const dest = document.createDocumentFragment();
   const filtered = flowSnapshot.destinations.filter(row => groupMatches({
@@ -150,8 +155,10 @@ function renderSensors(data) {
     state.className = "flow-sensor-state" + (item.online ? " ready" : "");
     state.textContent = item.online ? "Online" : "Offline";
     const accounting = document.createElement("span");
-    accounting.textContent = item.accounting_enabled ?
-      "Packet / byte accounting enabled" : "Kernel byte accounting disabled";
+    accounting.textContent = item.source === "windows_wfp" ?
+      "Windows WFP audit (no byte counters)" :
+      (item.accounting_enabled ? "Linux kernel byte accounting enabled" :
+       "Linux kernel byte accounting disabled");
     accounting.className = "flow-sensor-hint";
     const seen = document.createElement("small");
     seen.textContent = "Last heartbeat: " + date(item.last_seen);
@@ -160,7 +167,7 @@ function renderSensors(data) {
   }
   if (!list.length) {
     const message = document.createElement("p");
-    message.textContent = "No Linux collectors have reported yet. Install ShiroBird on the peers or routing hosts you want to observe.";
+    message.textContent = "No Linux or Windows collectors have reported yet. Install sensors on the peers or routing hosts you want to observe.";
     fragment.append(message);
   }
   $("flow-sensor-list").replaceChildren(fragment);
@@ -177,8 +184,11 @@ async function refreshAnalytics() {
   $("flow-ends").textContent = fmt(data.total.ends);
   $("flow-bytes").textContent = humanBytes(data.total.bytes);
   $("flow-sensors").textContent = fmt(data.total.sensors);
-  $("flow-telemetry-note").textContent = data.counters_note +
-    " NetBird policy allow/deny decisions are not available from conntrack.";
+  $("flow-allowed").textContent = fmt(data.total.allows);
+  $("flow-blocked").textContent = fmt(data.total.blocks);
+  $("flow-dropped").textContent = fmt(data.total.drops);
+  $("flow-telemetry-note").textContent = data.counters_note + " " +
+    data.verdict_note + " NetBird policy rules are not directly observable here.";
   renderAnalytics();
 }
 window.addEventListener("message", event => {
@@ -200,14 +210,17 @@ function renderFlows() {
   const filter = $("filter").value.toLowerCase();
   const fragment = document.createDocumentFragment();
   const matches = flows.filter(row => [
-    row.src, row.dst, row.sensor, row.proto, row.type,
-    String(row.sport), String(row.dport)
+    row.src, row.dst, row.sensor, row.proto, row.type, row.source,
+    row.application, row.filter_id, String(row.sport), String(row.dport)
   ].some(field => String(field).toLowerCase().includes(filter)));
   for (const row of matches.slice(0, 200)) {
     const tr = document.createElement("tr");
     const values = [
       date(row.ts), row.sensor, row.type, row.proto.toUpperCase(),
-      endpoint(row.src) + ":" + row.sport, endpoint(row.dst) + ":" + row.dport, fmt(row.bytes)
+      endpoint(row.src) + ":" + row.sport, endpoint(row.dst) + ":" + row.dport,
+      row.source === "windows_wfp" ? "Windows WFP" : "Linux conntrack",
+      [row.application, row.filter_id ? "filter #" + row.filter_id : ""].filter(Boolean).join(" · ") || "—",
+      fmt(row.bytes)
     ];
     for (const value of values) {
       const cell = document.createElement("td");
@@ -218,7 +231,7 @@ function renderFlows() {
   }
   if (!matches.length) {
     const tr = document.createElement("tr"), cell = document.createElement("td");
-    cell.colSpan = 7;
+    cell.colSpan = 9;
     cell.textContent = "No matching events";
     tr.append(cell);
     fragment.append(tr);
