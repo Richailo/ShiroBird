@@ -151,3 +151,13 @@ body.embedded .overlay[data-netbird="1"]::before{
 @media(max-width:1040px){.flow-analytics-grid{grid-template-columns:1fr}}
 @media(max-width:680px){.flow-tools label,.flow-tools input,.flow-tools select{width:100%;min-width:0}
 .flow-tools{align-items:stretch;flex-direction:column}}
+
+.flow-sensor-panel{margin:14px 0 20px}
+.flow-sensor-list{display:flex;flex-wrap:wrap;gap:14px;padding:16px 20px}
+.flow-sensor-list>p{font-size:12px;margin:0;color:var(--muted)}
+.flow-sensor{border:1px solid var(--stroke);border-radius:9px;
+  background:var(--soft);display:grid;gap:7px;padding:14px;min-width:220px}
+.flow-sensor strong{font-size:13px;font-weight:650;overflow-wrap:anywhere}
+.flow-sensor small,.flow-sensor-hint{font-size:11px;color:var(--muted)}
+.flow-sensor-state{font-size:11px;color:#bf554a;font-weight:650}
+.flow-sensor-state.ready{color:#269469}
