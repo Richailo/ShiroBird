@@ -15,6 +15,7 @@ import time
 from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
+from shirobird import netbird_auth
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = Path(os.getenv("SHIROBIRD_DATA", "/data"))
@@ -25,6 +26,8 @@ INGEST_KEY = os.getenv("SHIROBIRD_INGEST_TOKEN", "")
 COOKIE_SECURE = os.getenv("SHIROBIRD_COOKIE_SECURE", "true").lower() == "true"
 EMBEDDED = os.getenv("SHIROBIRD_EMBEDDED", "false").lower() == "true"
 COOKIE_PATH = "/shirobird/" if EMBEDDED else "/"
+AUTH_MODE = os.getenv("SHIROBIRD_AUTH_MODE", "token").lower()
+NETBIRD_IDENTITY_URL = os.getenv("SHIROBIRD_NETBIRD_IDENTITY_URL", "http://netbird-server:80/api/users/current")
 RETENTION_DAYS = max(1, int(os.getenv("SHIROBIRD_RETENTION_DAYS", "30")))
 BIND = os.getenv("SHIROBIRD_BIND", "0.0.0.0")
 PORT = int(os.getenv("SHIROBIRD_PORT", "8666"))
@@ -174,7 +177,8 @@ class Handler(BaseHTTPRequestHandler):
             jar = cookies.SimpleCookie()
             jar.load(self.headers.get("Cookie", ""))
             item = jar.get("shirobird_session")
-            return item is not None and session_valid(item.value)
+            return (item is not None and (netbird_auth.session_valid(item.value, ADMIN_KEY)
+                    if AUTH_MODE == "netbird" else session_valid(item.value)))
         except cookies.CookieError:
             return False
 
@@ -200,7 +204,30 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = self.route()
+        if route == "/api/netbird-session":
+            if AUTH_MODE != "netbird" or not EMBEDDED:
+                return self.reply(404, {"error": "not enabled"})
+            header = self.headers.get("Authorization", "")
+            if not header.startswith("Bearer "):
+                return self.reply(401, {"error": "NetBird sign-in required"})
+            identity = netbird_auth.current_admin(header[7:], NETBIRD_IDENTITY_URL)
+            if identity is None:
+                return self.reply(403, {"error": "NetBird Owner/Admin access required"})
+            signed = netbird_auth.sign_session(identity["id"], ADMIN_KEY)
+            self.send_response(200)
+            self.common_headers()
+            cookie = (f"shirobird_session={signed}; HttpOnly; SameSite=Strict; "
+                      f"Path={COOKIE_PATH}; Max-Age={netbird_auth.SESSION_SECONDS}")
+            if COOKIE_SECURE:
+                cookie += "; Secure"
+            self.send_header("Set-Cookie", cookie)
+            self.send_header("Content-Length", "11")
+            self.end_headers()
+            self.wfile.write(b'{"ok":true}')
+            return
         if route == "/api/login":
+            if AUTH_MODE == "netbird":
+                return self.reply(404, {"error": "Use NetBird login"})
             ip = self.client_address[0]
             with LOGIN_LOCK:
                 attempts, started = FAILED_LOGINS.get(ip, (0, time.time()))
@@ -324,6 +351,8 @@ def maintenance():
         time.sleep(3600)
 
 def main():
+    if AUTH_MODE not in {"token", "netbird"}:
+        raise SystemExit("SHIROBIRD_AUTH_MODE must be netbird or token")
     if len(ADMIN_KEY) < 32 or len(INGEST_KEY) < 32 or secrets.compare_digest(ADMIN_KEY, INGEST_KEY):
         raise SystemExit("Set distinct strong SHIROBIRD_ADMIN_TOKEN and SHIROBIRD_INGEST_TOKEN (32+ chars).")
     init_db()
