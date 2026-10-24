@@ -16,7 +16,7 @@ jobs:
       - run: python -m unittest discover -s tests -v
       - run: python -m compileall -q shirobird
       - run: bash -n scripts/install.sh scripts/install-collector.sh scripts/install-integrated.sh
-      - run: node --check integration/bridge.js
+      - run: node --check integration/bridge.js && node --check web/app.js
       - run: docker build -t shirobird:test .
       - name: Dashboard bridge integration smoke test
         run: |
@@ -31,7 +31,11 @@ jobs:
           done
           curl -fsS http://127.0.0.1:8082/ | grep -q 'shirobird-integration/bridge.js'
           curl -fsS http://127.0.0.1:8082/shirobird-integration/bridge.js | grep -q 'left-navigation-item'
+          curl -fsS http://127.0.0.1:8082/shirobird-integration/bridge.js | grep -q 'Traffic Flow'
+          curl -fsS http://127.0.0.1:8082/shirobird-integration/bridge.js | grep -q 'SIEM Integration'
+          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=siem-integration' | grep -q 'id="siem-view"'
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/api/stats)" = "401"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/api/siem/status)" = "401"
           curl -fsS -D /tmp/shirobird-headers -o /dev/null http://127.0.0.1:8082/shirobird/
           grep -qi '^X-Frame-Options: SAMEORIGIN' /tmp/shirobird-headers
           test "$(curl -fsS http://127.0.0.1:8082/ | grep -o 'shirobird-integration/bridge.js' | wc -l)" -eq 1
