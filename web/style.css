@@ -1,1 +1,88 @@
-:root{font:14px ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;background:#0b101a;color:#e9f0fc}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 82% 0,#213652 0,transparent 43%),#0b101a}header{height:80px;border-bottom:1px solid #29374d;display:flex;justify-content:space-between;align-items:center;padding:0 max(25px,calc((100vw - 1290px)/2));background:#101827cc}.brand,.actions{display:flex;align-items:center;gap:12px}.brand strong{display:block;font-size:20px}.brand small{display:block;color:#94aac9;font-size:11px;margin-top:4px}.logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(130deg,#558fe9,#8b70f1);display:inline-grid;place-items:center;color:white;font-size:24px;font-weight:800}.status{background:#1b2b42;border:1px solid #364a65;border-radius:30px;color:#a5b8d3;padding:7px 11px;font-size:12px}.status.live{background:#16453c;color:#a1f0ce}main{max-width:1340px;margin:auto;padding:40px 25px}.hero{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:26px}.eyebrow{color:#8daefa;letter-spacing:2px;font-weight:800;font-size:11px}.hero h1{font-size:36px;letter-spacing:-1px;margin:10px 0}.hero p,p{color:#9daec7}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px;margin-bottom:25px}.stats article,.panel{border:1px solid #293b55;border-radius:14px;background:#142033e8;box-shadow:0 10px 35px #01060e2a}.stats article{padding:24px}.stats span{display:block;color:#96a9c5}.stats strong{display:block;margin-top:12px;font-size:29px}button,a.button{display:inline-block;background:#4c80e5;color:white;text-decoration:none;padding:10px 16px;border:1px solid transparent;border-radius:9px;cursor:pointer;font:600 13px system-ui}button:hover,a.button:hover{filter:brightness(1.16)}button.secondary,a.button.secondary{background:#202d45;border-color:#3b4d6b;color:#e1eaff}.panel{overflow:hidden}.panelhead{padding:22px;display:flex;justify-content:space-between;align-items:center;gap:15px}.panelhead h2{margin:0}.panelhead p{margin:6px 0 0;font-size:12px}.tablewrap{overflow-x:auto}table{width:100%;min-width:850px;border-collapse:collapse}th{text-align:left;text-transform:uppercase;letter-spacing:.5px;background:#1b2a40;font-size:11px;color:#99afca;padding:14px 20px}td{border-top:1px solid #2b3951;padding:14px 20px;color:#dce6f6;font-size:12px}td:nth-child(5),td:nth-child(6){font-family:Consolas,monospace}input{background:#111d30;color:white;border:1px solid #3b4f6d;border-radius:9px;padding:11px;outline:0}input:focus{border-color:#83aaf2}footer{padding:28px 0;color:#7990ae;font-size:12px}.overlay{position:fixed;inset:0;background:#090d18ed;display:grid;place-items:center}.hidden{display:none}.login{width:min(410px,calc(100vw - 28px));padding:34px;background:#152135;border:1px solid #344a68;border-radius:18px}.login h2{font-size:24px}.login p{font-size:13px;line-height:1.5}.login label{display:block;margin:22px 0 8px}.login input,.login button{width:100%}.login button{margin-top:13px}.login small{display:block;color:#8296b2;margin-top:17px}.error{color:#ff9b9b;min-height:17px}@media(max-width:900px){.hero,.panelhead{align-items:flex-start;flex-direction:column}.stats{grid-template-columns:repeat(2,1fr)}}@media(max-width:550px){header{padding:0 13px}.brand small{display:none}main{padding:24px 12px}.stats article{padding:14px}.stats strong{font-size:21px}.hero h1{font-size:30px}.actions{flex-wrap:wrap}}
+/* ShiroBird shares NetBird's neutral dashboard style and dark/light behavior. */
+:root {
+  font-family: Inter, ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size: 14px;
+  color-scheme: light;
+  --page:#ffffff;--surface:#ffffff;--field:#ffffff;
+  --sidebar:#f9fafb;--muted:#6b7280;--text:#161b23;
+  --stroke:#e4e7eb;--hover:#f4f5f7;--primary:#2563eb;
+  --soft:#f9fafb;--accent:#2563eb;
+}
+:root.dark {
+  color-scheme: dark;
+  --page:#111215;--surface:#1a1b20;--field:#212228;
+  --sidebar:#191a1f;--muted:#a2a3ac;--text:#f4f4f6;
+  --stroke:#313239;--hover:#292a31;--primary:#718dff;
+  --soft:#18191d;--accent:#9cacff;
+}
+*{box-sizing:border-box}
+html,body{min-height:100%;background:var(--page);color:var(--text)}
+body{margin:0}
+header{display:flex;justify-content:space-between;align-items:center;
+  min-height:64px;background:var(--surface);padding:10px 32px;border-bottom:1px solid var(--stroke)}
+.brand,.actions{display:flex;align-items:center;gap:12px}
+.brand strong{font-size:18px;display:block}
+.brand small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+.logo{display:inline-grid;place-items:center;background:var(--primary);
+  width:37px;height:37px;border-radius:10px;color:white;font-weight:750;font-size:20px}
+button,.button{appearance:none;display:inline-flex;align-items:center;justify-content:center;
+  min-height:36px;padding:8px 13px;border-radius:7px;border:1px solid transparent;
+  background:#384ce5;color:#fff;text-decoration:none;font:600 13px inherit;cursor:pointer}
+.secondary,button.secondary,a.button.secondary{background:var(--field);
+  color:var(--text);border:1px solid var(--stroke)}
+button:hover,.button:hover{filter:brightness(.92)}
+input{background:var(--field);color:var(--text);border:1px solid var(--stroke);
+  padding:10px 12px;min-height:36px;border-radius:7px;outline:none}
+input:focus{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--primary),transparent 75%)}
+.status{font-size:12px;color:var(--muted);border:1px solid var(--stroke);
+  padding:7px 10px;border-radius:16px;background:var(--soft)}
+.status.live{color:#209f75}
+main{max-width:1440px;margin:0 auto;padding:32px 30px 48px}
+.hero{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:25px}
+.eyebrow{color:var(--muted);font-size:11px;letter-spacing:1px;font-weight:700}
+h1{font-size:27px;letter-spacing:-.6px;margin:5px 0 8px;font-weight:690}
+h2{font-size:17px;margin:0;font-weight:650}
+p{margin:5px 0;color:var(--muted);font-size:13px}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:23px}
+.stats article,.panel{background:var(--surface);border:1px solid var(--stroke);border-radius:10px}
+.stats article{padding:19px 21px}
+.stats span{font-size:12px;color:var(--muted)}
+.stats strong{display:block;margin-top:10px;font-size:26px;font-weight:660;font-variant-numeric:tabular-nums}
+.panel{overflow:hidden}
+.panelhead{display:flex;align-items:center;justify-content:space-between;
+  gap:12px;padding:20px;border-bottom:1px solid var(--stroke)}
+.panelhead p{margin-top:5px;font-size:12px}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:850px}
+th{background:var(--soft);text-align:left;font-size:11px;
+  letter-spacing:.45px;text-transform:uppercase;font-weight:600;
+  color:var(--muted);padding:13px 19px}
+td{padding:13px 19px;border-top:1px solid var(--stroke);font-size:12px}
+tbody tr:hover{background:var(--hover)}
+td:nth-child(5),td:nth-child(6){font-family:ui-monospace,Consolas,monospace}
+footer{padding:30px 0;color:var(--muted);font-size:11px}
+.overlay{position:fixed;inset:0;background:color-mix(in srgb,var(--page) 92%,transparent);
+  z-index:10;display:grid;place-items:center}
+.overlay.hidden{display:none}
+.login{width:min(430px,calc(100vw - 30px));padding:30px;
+  border-radius:12px;border:1px solid var(--stroke);background:var(--surface);
+  box-shadow:0 20px 45px #0002}
+.login h2{margin:22px 0 12px;font-size:22px}
+.login label{display:block;margin:20px 0 8px}
+.login input,.login button{width:100%}
+.login button{margin-top:12px}
+.login small{display:block;margin-top:18px;color:var(--muted)}
+.error{color:#e25252;min-height:18px}
+body.embedded header{display:none}
+body.embedded main{max-width:none;padding:28px 29px 36px}
+body.embedded .hero .eyebrow{display:none}
+body.embedded .hero h1{font-size:25px}
+body.embedded footer{display:none}
+body.embedded .overlay[data-netbird="1"]::before{
+  content:"Waiting for NetBird authentication…";color:var(--muted);
+  font-size:14px;text-align:center
+}
+@media(max-width:980px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:740px){.hero,.panelhead{align-items:flex-start;flex-direction:column}
+  main,body.embedded main{padding:18px 16px}.actions{flex-wrap:wrap}
+  .stats article{padding:15px}.stats strong{font-size:23px}}
