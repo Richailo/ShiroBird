@@ -72,14 +72,16 @@
           <div class="panelhead"><div><h2>Wazuh integration</h2>
             <p>Read ShiroBird's local JSONL using a Wazuh agent on the server.</p></div></div>
           <div class="siem-body">
-            <p>For the default installation, configure the Wazuh agent's
-              <code>/var/ossec/etc/ossec.conf</code> using the absolute path to
-              your ShiroBird directory:</p>
+            <p>Install and enroll Wazuh Agent on this Linux server first.
+              Then use the prepared localfile integration without changing NetBird.</p>
             <pre id="wazuh-example">&lt;localfile&gt;
   &lt;log_format&gt;json&lt;/log_format&gt;
   &lt;location&gt;/path/to/ShiroBird/data/siem/events.jsonl&lt;/location&gt;
 &lt;/localfile&gt;</pre>
-            <div class="actions"><button id="copy-wazuh" type="button" class="secondary">Copy configuration</button></div>
+            <div class="actions"><button id="copy-wazuh" type="button" class="secondary">Copy Wazuh XML</button></div>
+            <p>For a safe, idempotent configuration after the agent has been installed:</p>
+            <pre id="wazuh-script">sudo bash scripts/configure-wazuh-agent.sh --apply</pre>
+            <button id="copy-wazuh-script" type="button" class="secondary">Copy setup command</button>
             <p class="siem-note">Restart the Wazuh agent after configuration.
               Confirm ingestion in Wazuh separately: ShiroBird cannot verify delivery automatically.</p>
           </div>
@@ -99,6 +101,28 @@
               Use the included logrotate rule and monitor free disk space.</p>
             <p id="siem-error" class="error" role="status"></p>
           </div>
+        </section>
+        <section class="panel" id="siem-syslog-settings">
+          <div class="panelhead"><div><h2>Syslog forwarding</h2>
+            <p>Send ShiroBird flow events as RFC 5424-style UDP Syslog to a receiver.</p></div></div>
+          <form class="siem-body siem-syslog-form" id="syslog-form">
+            <label class="syslog-toggle"><input type="checkbox" id="syslog-enabled">
+              Enable Syslog forwarding</label>
+            <div class="siem-syslog-fields">
+              <label>Destination IP or hostname
+                <input id="syslog-host" autocomplete="off" placeholder="192.0.2.10" maxlength="253"></label>
+              <label>UDP port
+                <input id="syslog-port" type="number" min="1" max="65535" value="514"></label>
+            </div>
+            <p class="siem-note">UDP is not encrypted and has no delivery acknowledgement. Use
+              only a trusted network or encrypted VPN. A successful test verifies local sending,
+              not ingestion by the remote SIEM.</p>
+            <div class="actions">
+              <button type="submit" id="syslog-save">Save settings</button>
+              <button type="button" id="syslog-test" class="secondary">Send test event</button>
+            </div>
+            <p class="siem-note" id="syslog-message" role="status"></p>
+          </form>
         </section>
       </div>
     </section>
