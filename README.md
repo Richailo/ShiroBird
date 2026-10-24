@@ -35,10 +35,10 @@ The installer automatically:
 
 ```bash
 sudo apt-get install -y conntrack
-sudo bash scripts/install-collector.sh
+sudo SHIROBIRD_ENABLE_ACCOUNTING=1 bash scripts/install-collector.sh
 ```
 
-The collector runs independently from the NetBird clients and only observes selected IPv4/IPv6 CIDRs. Deploy collectors on each monitored Linux peer or routing gateway. NetBird management/relay cannot see decrypted direct P2P traffic. Byte counters require kernel connection-tracking accounting; by default this can be disabled. See [Wazuh integration](docs/wazuh.md).
+The collector runs independently from the NetBird clients and only observes selected IPv4/IPv6 CIDRs. For central observation, run the collector only on the NetBird routing server; no client changes are needed. IPv4/IPv6 overlay filters are detected automatically. See [central setup, verified scope and rollback](docs/central-observation.md). NetBird management/relay cannot see decrypted direct P2P traffic. Byte counters require kernel connection-tracking accounting; by default this can be disabled. See [Wazuh integration](docs/wazuh.md).
 
 ## Standalone (without NetBird Dashboard)
 

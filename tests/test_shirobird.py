@@ -47,7 +47,7 @@ class ServerTests(unittest.TestCase):
 class CollectorTests(unittest.TestCase):
     def test_conntrack(self):
         line = "[2026-10-24 17:30:00] [DESTROY] tcp 6 100 TIME_WAIT src=100.64.1.2 dst=192.168.0.10 sport=1234 dport=443 packets=3 bytes=200 src=192.168.0.10 dst=100.64.1.2 sport=443 dport=1234 packets=4 bytes=300"
-        event = collector.parse_line(line)
+        event = collector.parse_line(line, networks=[ipaddress.ip_network("100.64.0.0/16")])
         self.assertEqual(event["bytes"], 500)
         self.assertEqual(event["packets"], 7)
         self.assertEqual(event["type"], "DESTROY")

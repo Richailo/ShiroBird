@@ -21,7 +21,7 @@
     <section id="traffic-view">
       <div class="hero">
         <div><small class="eyebrow">SHIROBIRD</small><h1>Traffic Flow</h1>
-          <p>Live network connection metadata from ShiroBird collectors.</p>
+          <p>Central observation on the routing server. No extra software or configuration on clients.</p>
         </div>
         <div class="actions">
           <a href="api/export.csv" class="button secondary">Export CSV</a>
@@ -56,7 +56,7 @@
       <section class="panel flow-sensor-panel" aria-label="Sensor coverage">
         <div class="panelhead">
           <div><h2>Collector coverage</h2>
-            <p>Shows actual reporter heartbeats; NetBird management is not a packet sensor</p></div>
+            <p>Only traffic to/from or forwarded through this server is visible. Direct P2P between other peers and encrypted relay payloads are outside this coverage.</p></div>
           <span id="flow-sensor-count" class="status">Checking sensors…</span>
         </div>
         <div id="flow-sensor-list" class="flow-sensor-list">

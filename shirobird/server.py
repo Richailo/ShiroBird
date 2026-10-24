@@ -85,6 +85,9 @@ def init_db():
             accounting_enabled INTEGER NOT NULL, source TEXT NOT NULL
         )""")
 
+        if "coverage" not in {r[1] for r in c.execute("PRAGMA table_info(sensors)")}:
+            c.execute("ALTER TABLE sensors ADD COLUMN coverage TEXT NOT NULL DEFAULT '{}'")
+
 def clean_str(value, maximum):
     if not isinstance(value, str) or not value or len(value) > maximum:
         raise ValueError("invalid string")
@@ -235,29 +238,41 @@ def write_events(events, sensor):
                         print(f"syslog export failed: {error}", flush=True)
     return len(accepted)
 
-def touch_sensor(name, accounting_enabled=False, source="linux_conntrack"):
+def touch_sensor(name, accounting_enabled=False, source="linux_conntrack", coverage=None):
     name = clean_str(name, 80)
     if type(accounting_enabled) is not bool:
         raise ValueError("accounting_enabled must be boolean")
     if source not in {"linux_conntrack", "windows_wfp"}:
         raise ValueError("unsupported sensor source")
+    coverage = {} if coverage is None else coverage
+    if not isinstance(coverage, dict):
+        raise ValueError("invalid coverage")
+    if coverage:
+        networks = coverage.get("networks", [])
+        if not isinstance(networks, list) or len(networks) > 64:
+            raise ValueError("invalid networks")
+        if type(coverage.get("capture_ready")) is not bool:
+            raise ValueError("invalid capture status")
+        coverage = {"networks": [str(ipaddress.ip_network(n, strict=False)) for n in networks],
+                    "capture_ready": coverage["capture_ready"], "scope": "local_and_routed"}
     with connection() as c:
-        c.execute("""INSERT INTO sensors(name,last_seen,accounting_enabled,source)
-            VALUES (?,?,?,?)
+        c.execute("""INSERT INTO sensors(name,last_seen,accounting_enabled,source,coverage)
+            VALUES (?,?,?,?,?)
             ON CONFLICT(name) DO UPDATE SET
                 last_seen=excluded.last_seen,
                 accounting_enabled=excluded.accounting_enabled,
-                source=excluded.source
-        """, (name, int(time.time()), int(accounting_enabled), source))
+                source=excluded.source, coverage=excluded.coverage
+        """, (name, int(time.time()), int(accounting_enabled), source, json.dumps(coverage)))
 
 def sensor_status():
     with connection() as c:
-        rows = c.execute("""SELECT name,last_seen,accounting_enabled,source FROM sensors
+        rows = c.execute("""SELECT name,last_seen,accounting_enabled,source,coverage FROM sensors
               ORDER BY last_seen DESC LIMIT 200""").fetchall()
     return {"sensors": [
         {"name": r["name"], "last_seen": r["last_seen"],
          "online": r["last_seen"] >= int(time.time()) - 120,
-         "accounting_enabled": bool(r["accounting_enabled"]), "source": r["source"]}
+         "accounting_enabled": bool(r["accounting_enabled"]), "source": r["source"],
+         "coverage": json.loads(r["coverage"])}
         for r in rows
     ], "freshness_seconds": 120}
 
@@ -529,7 +544,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("object expected")
                 touch_sensor(details.get("sensor"),
                              details.get("accounting_enabled", False),
-                             details.get("source", "linux_conntrack"))
+                             details.get("source", "linux_conntrack"), details.get("coverage"))
                 return self.reply(202, {"accepted": True})
             except (ValueError, TypeError) as error:
                 return self.reply(400, {"error": str(error)})

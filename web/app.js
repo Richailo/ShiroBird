@@ -162,12 +162,21 @@ function renderSensors(data) {
     accounting.className = "flow-sensor-hint";
     const seen = document.createElement("small");
     seen.textContent = "Last heartbeat: " + date(item.last_seen);
-    row.append(name, state, accounting, seen);
+    const coverage = document.createElement("small");
+    if (item.coverage?.scope === "local_and_routed") {
+      coverage.textContent = "Local/routed observation · " +
+        (item.coverage.networks.join(", ") || "no overlay detected");
+      if (item.online && (!item.coverage.capture_ready || !item.coverage.networks.length)) {
+        state.textContent = "Capture unavailable";
+        state.className = "flow-sensor-state";
+      }
+    }
+    row.append(name, state, accounting, coverage, seen);
     fragment.append(row);
   }
   if (!list.length) {
     const message = document.createElement("p");
-    message.textContent = "No Linux or Windows collectors have reported yet. Install sensors on the peers or routing hosts you want to observe.";
+    message.textContent = "No central collector has reported yet. Check the collector service on the NetBird routing server.";
     fragment.append(message);
   }
   $("flow-sensor-list").replaceChildren(fragment);
@@ -184,9 +193,9 @@ async function refreshAnalytics() {
   $("flow-ends").textContent = fmt(data.total.ends);
   $("flow-bytes").textContent = humanBytes(data.total.bytes);
   $("flow-sensors").textContent = fmt(data.total.sensors);
-  $("flow-allowed").textContent = fmt(data.total.allows);
-  $("flow-blocked").textContent = fmt(data.total.blocks);
-  $("flow-dropped").textContent = fmt(data.total.drops);
+  $("flow-allowed").textContent = data.wfp_decisions_available ? fmt(data.total.allows) : "N/A";
+  $("flow-blocked").textContent = data.wfp_decisions_available ? fmt(data.total.blocks) : "N/A";
+  $("flow-dropped").textContent = data.drops_available ? fmt(data.total.drops) : "N/A";
   $("flow-telemetry-note").textContent = data.counters_note + " " +
     data.verdict_note + " NetBird policy rules are not directly observable here.";
   renderAnalytics();

@@ -20,14 +20,22 @@ case "$URL" in
   *) echo "Use HTTPS for remote collection; HTTP is only permitted locally"; exit 1 ;;
 esac
 HOSTNAME_SENSOR="$(hostname)"
+if [[ ! -f /etc/shirobird/collector.env ]]; then
 cat > /etc/shirobird/collector.env <<EOF
 SHIROBIRD_SERVER_URL=$URL
 SHIROBIRD_INGEST_TOKEN=$TOKEN
 SHIROBIRD_SENSOR=$HOSTNAME_SENSOR
-SHIROBIRD_NETWORKS=100.64.0.0/10
+SHIROBIRD_NETWORKS=auto
 EOF
+fi
 chmod 600 /etc/shirobird/collector.env
 install -m 644 packaging/shirobird-collector.service /etc/systemd/system/shirobird-collector.service
+if [[ "${SHIROBIRD_ENABLE_ACCOUNTING:-0}" == "1" ]]; then
+  printf '%s\n' '# ShiroBird byte counters; does not alter routing or firewall rules' \
+    'net.netfilter.nf_conntrack_acct = 1' > /etc/sysctl.d/90-shirobird-accounting.conf
+  sysctl -w net.netfilter.nf_conntrack_acct=1
+fi
 systemctl daemon-reload
-systemctl enable --now shirobird-collector
+systemctl enable shirobird-collector
+systemctl restart shirobird-collector
 echo "Collector started. Check: journalctl -u shirobird-collector -n 30 --no-pager"
