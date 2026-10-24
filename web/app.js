@@ -1,8 +1,24 @@
+const embedded = new URLSearchParams(location.search).has("embedded");
+if (embedded) document.body.classList.add("embedded");
+window.addEventListener("message", e => {
+  if (e.origin !== location.origin || !e.data || e.data.source !== "shirobird-theme") return;
+  document.documentElement.classList.toggle("dark", Boolean(e.data.dark));
+  document.documentElement.classList.toggle("light", !e.data.dark);
+});
 "use strict";
 const $=id=>document.getElementById(id);let flows=[],stream=null,lastId=0;
 const fmt=n=>Number(n||0).toLocaleString(),date=t=>t?new Date(t*1000).toLocaleString():"—";
 function status(s,live=false){$("connection").textContent=s;$("connection").className=live?"status live":"status";}
-function showLogin(){$("auth").classList.remove("hidden");status("Sign in required");if(stream)stream.close();stream=null;}
+function showLogin(){
+  $("auth").classList.remove("hidden");
+  if (embedded) {
+    $("form").hidden = true;
+    $("auth").setAttribute("aria-label", "Waiting for NetBird authentication");
+    $("auth").dataset.netbird = "1";
+    status("Waiting for NetBird session");
+  } else status("Sign in required");
+  if(stream)stream.close();stream=null;
+}
 async function req(url,opts={}){const r=await fetch(url,{credentials:"same-origin",cache:"no-store",...opts});if(r.status===401){showLogin();throw Error("Login required");}if(!r.ok)throw Error("HTTP "+r.status);return r.json();}
 function render(){const q=$("filter").value.toLowerCase(),fragment=document.createDocumentFragment();
 for(const e of flows.filter(x=>[x.src,x.dst,x.sensor,x.proto,x.type,String(x.sport),String(x.dport)].some(x=>x.toLowerCase().includes(q))).slice(0,200)){
