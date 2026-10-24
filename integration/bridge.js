@@ -179,6 +179,10 @@
   window.addEventListener("hashchange", refresh);
   window.addEventListener("popstate", refresh);
   window.addEventListener("resize", refresh);
+  // Reflect NetBird appearance changes immediately without touching its styles.
+  new MutationObserver(applyTheme).observe(document.documentElement, {
+    attributes: true, attributeFilter: ["class"]
+  });
   window.setInterval(() => { if (location.hash === ROUTE) void netbirdLogin(); }, 90000);
   // NetBird uses buttons for its own routes; dismiss the overlay when one is selected.
   document.addEventListener("click", event => {
