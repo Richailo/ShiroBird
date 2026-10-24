@@ -53,3 +53,11 @@ jobs:
           docker compose -f compose.yaml -f compose.bridge.yaml down || true
           docker rm -f netbird-dashboard || true
           docker network rm netbird_netbird || true
+
+  windows-wfp:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Windows WFP parser and PowerShell collector syntax
+        shell: powershell
+        run: .\\windows\\test.ps1
