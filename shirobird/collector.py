@@ -11,7 +11,9 @@ import threading
 import time
 from urllib.request import Request, urlopen
 
-URL = os.getenv("SHIROBIRD_SERVER_URL", "http://127.0.0.1:8666").rstrip("/") + "/api/ingest"
+SERVER = os.getenv("SHIROBIRD_SERVER_URL", "http://127.0.0.1:8666").rstrip("/")
+URL = SERVER + "/api/ingest"
+HEARTBEAT_URL = SERVER + "/api/sensors/heartbeat"
 TOKEN = os.getenv("SHIROBIRD_INGEST_TOKEN", "")
 SENSOR = os.getenv("SHIROBIRD_SENSOR", socket.gethostname())
 NETWORKS = [ipaddress.ip_network(x.strip(), strict=False) for x in
@@ -48,6 +50,33 @@ def parse_line(line, sensor=SENSOR, networks=None):
     except (KeyError, ValueError):
         return None
 
+def accounting_enabled():
+    try:
+        with open("/proc/sys/net/netfilter/nf_conntrack_acct",
+                  "r", encoding="ascii") as source:
+            return source.read().strip() == "1"
+    except OSError:
+        return False
+
+def heartbeat():
+    """Regular out-of-band proof the collector is online, even without flows."""
+    while True:
+        body = json.dumps({
+            "sensor": SENSOR,
+            "source": "linux_conntrack",
+            "accounting_enabled": accounting_enabled()
+        }).encode()
+        req = Request(HEARTBEAT_URL, data=body, method="POST",
+                      headers={"Authorization": "Bearer " + TOKEN,
+                               "Content-Type": "application/json"})
+        try:
+            with urlopen(req, timeout=10) as response:
+                if response.status != 202:
+                    raise RuntimeError(f"heartbeat status {response.status}")
+        except Exception as error:
+            print(f"ShiroBird heartbeat failed: {error}", file=sys.stderr, flush=True)
+        time.sleep(30)
+
 def uploader(q):
     pending = []
     while True:
@@ -76,6 +105,7 @@ def main():
         raise SystemExit("SHIROBIRD_INGEST_TOKEN must be 32+ characters")
     q = queue.Queue(maxsize=OUTPUT_LIMIT)
     threading.Thread(target=uploader, args=(q,), daemon=True).start()
+    threading.Thread(target=heartbeat, daemon=True).start()
     while True:
         try:
             with subprocess.Popen(["conntrack", "-E", "-e", "NEW,DESTROY",
