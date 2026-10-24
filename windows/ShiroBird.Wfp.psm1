@@ -41,8 +41,8 @@ function ConvertTo-ShiroBirdWfpEvent {
         if ($eventId -notin @(5156, 5157, 5152)) { return $null }
         $values = @{}
         foreach ($item in $xml.Event.EventData.Data) {
-            $name = [string]$item.Name
-            if ($name) { $values[$name] = [string]$item.'#text' }
+            $name = [string]$item.GetAttribute('Name')
+            if ($name) { $values[$name] = [string]$item.InnerText }
         }
         $source = [string]$values['SourceAddress']
         $dest = [string]$values['DestAddress']
