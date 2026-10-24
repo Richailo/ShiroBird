@@ -58,30 +58,86 @@
     });
     original.insertAdjacentElement('afterend', holder);
   }
+  // NetBird's OIDC client keeps accessToken inside oidc.default in sessionStorage.
+  // The token is sent only to our same-origin /shirobird/ auth endpoint, which
+  // independently validates it against NetBird Management. It is never persisted.
+  function currentNetBirdToken() {
+    for (const store of [sessionStorage, localStorage]) {
+      try {
+        const entry = JSON.parse(store.getItem("oidc.default") || "null");
+        const token = entry && entry.tokens && entry.tokens.accessToken;
+        if (typeof token === "string" && token.length > 15) return token;
+      } catch (_) { /* Session not available yet. */ }
+    }
+    return null;
+  }
   function createPanel() {
     const host = document.createElement("section");
     host.id = VIEW_ID;
     host.hidden = true;
     host.setAttribute("aria-label", "ShiroBird network monitoring");
-    const toolbar = document.createElement("div");
-    toolbar.className = "shirobird-toolbar";
-    const heading = document.createElement("strong");
-    heading.textContent = "◈  ShiroBird";
-    const back = document.createElement("button");
-    back.type = "button";
-    back.textContent = "Back to NetBird";
-    back.addEventListener("click", () => {
-      history.replaceState(history.state, "", location.pathname + location.search);
-      refresh();
-    });
-    toolbar.append(heading, back);
+    const message = document.createElement("div");
+    message.className = "shirobird-auth-message";
+    message.setAttribute("role", "status");
+    message.textContent = "Connecting with your NetBird account…";
     const iframe = document.createElement("iframe");
     iframe.title = "ShiroBird traffic observability";
     iframe.referrerPolicy = "no-referrer";
-    iframe.loading = "lazy";
-    host.append(toolbar, iframe);
+    iframe.hidden = true;
+    iframe.addEventListener("load", applyTheme);
+    host.append(message, iframe);
     document.body.append(host);
     return host;
+  }
+  function applyTheme() {
+    const frame = document.querySelector("#" + VIEW_ID + " iframe");
+    if (frame && frame.contentWindow)
+      frame.contentWindow.postMessage({
+        source: "shirobird-theme",
+        dark: document.documentElement.classList.contains("dark")
+      }, location.origin);
+  }
+  let validating = null, lastAuth = 0;
+  async function netbirdLogin() {
+    if (validating) return validating;
+    validating = (async () => {
+      const panel = document.getElementById(VIEW_ID);
+      if (!panel) return;
+      const frame = panel.querySelector("iframe");
+      const message = panel.querySelector(".shirobird-auth-message");
+      const token = currentNetBirdToken();
+      if (!token) {
+        frame.hidden = true;
+        message.hidden = false;
+        message.textContent = "Sign in to NetBird to use ShiroBird.";
+        await fetch("/shirobird/api/logout", {method: "POST",
+          credentials: "same-origin"}).catch(() => {});
+        lastAuth = 0;
+        return;
+      }
+      try {
+        const response = await fetch("/shirobird/api/netbird-session", {
+          method: "POST",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: {"Authorization": "Bearer " + token}
+        });
+        if (!response.ok) throw new Error(response.status === 403
+          ? "ShiroBird is available to NetBird Owners and Admins only."
+          : "NetBird login verification failed.");
+        lastAuth = Date.now();
+        frame.hidden = false;
+        message.hidden = true;
+        if (!frame.hasAttribute("src")) frame.src = "/shirobird/?embedded=1";
+        else applyTheme();
+      } catch (error) {
+        frame.hidden = true;
+        message.hidden = false;
+        message.textContent = error.message || "NetBird session is unavailable.";
+        lastAuth = 0;
+      }
+    })();
+    try { await validating; } finally { validating = null; }
   }
   function refresh() {
     const active = location.hash === ROUTE;
@@ -94,17 +150,16 @@
     if (!panel && !active) return;
     if (!panel) panel = createPanel();
     panel.hidden = !active;
-    if (active) {
-      const frame = panel.querySelector("iframe");
-      if (!frame.hasAttribute("src")) frame.src = "/shirobird/";
-      const sidebar = sidebarFrom(nav || navCandidate());
-      const bounds = sidebar ? sidebar.getBoundingClientRect() : null;
-      const left = bounds && bounds.right > 48 && bounds.right < innerWidth * .55
-        ? bounds.right : 0;
-      panel.style.left = Math.round(left) + "px";
-      panel.style.top = bounds && bounds.top >= 40 && bounds.top < 180
-        ? Math.round(bounds.top) + "px" : "0px";
-    }
+    if (!active) return;
+    const sidebar = sidebarFrom(nav || navCandidate());
+    const bounds = sidebar ? sidebar.getBoundingClientRect() : null;
+    const left = bounds && bounds.right > 48 && bounds.right < innerWidth * .55
+      ? bounds.right : 0;
+    panel.style.left = Math.round(left) + "px";
+    panel.style.top = bounds && bounds.top >= 40 && bounds.top < 180
+      ? Math.round(bounds.top) + "px" : "0px";
+    if (Date.now() - lastAuth > 90000) void netbirdLogin();
+    applyTheme();
   }
   let pending = false;
   function reconcile() {
@@ -124,6 +179,7 @@
   window.addEventListener("hashchange", refresh);
   window.addEventListener("popstate", refresh);
   window.addEventListener("resize", refresh);
+  window.setInterval(() => { if (location.hash === ROUTE) void netbirdLogin(); }, 90000);
   // NetBird uses buttons for its own routes; dismiss the overlay when one is selected.
   document.addEventListener("click", event => {
     const target = event.target;
