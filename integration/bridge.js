@@ -62,7 +62,7 @@
   // The token is sent only to our same-origin /shirobird/ auth endpoint, which
   // independently validates it against NetBird Management. It is never persisted.
   function currentNetBirdToken() {
-    for (const store of [sessionStorage, localStorage]) {
+    for (const store of [sessionStorage]) {
       try {
         const entry = JSON.parse(store.getItem("oidc.default") || "null");
         const token = entry && entry.tokens && entry.tokens.accessToken;
