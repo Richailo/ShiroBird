@@ -185,6 +185,65 @@ def write_events(events, sensor):
                     print(f"syslog export failed: {error}", flush=True)
     return len(rows)
 
+def flow_analytics(minutes=60, limit=300):
+    """Windowed conntrack flow groups. NEW=observed start, DESTROY=end.
+    Neither means NetBird policy 'allow', and drops cannot be inferred.
+    Completed-session byte counts are summed once, not on each update.
+    """
+    if minutes not in (15, 60, 360, 1440, 10080):
+        raise ValueError("unsupported time window")
+    limit = max(1, min(500, limit))
+    cutoff = int(time.time()) - minutes * 60
+    with connection() as c:
+        rows = c.execute("""
+          SELECT sensor,proto,src,dst,dport,
+            MIN(ts) first_seen,MAX(ts) last_seen,
+            SUM(CASE WHEN type='NEW' THEN 1 ELSE 0 END) starts,
+            SUM(CASE WHEN type='DESTROY' THEN 1 ELSE 0 END) ends,
+            SUM(CASE WHEN type='UPDATE' THEN 1 ELSE 0 END) updates,
+            SUM(CASE WHEN type='DESTROY' THEN bytes ELSE 0 END) bytes,
+            SUM(CASE WHEN type='DESTROY' THEN packets ELSE 0 END) packets
+          FROM flows WHERE ts >= ?
+          GROUP BY sensor,proto,src,dst,dport
+          ORDER BY last_seen DESC
+          LIMIT ?
+        """, (cutoff, limit)).fetchall()
+        totals = c.execute("""
+          SELECT COUNT(*) events,
+            COUNT(DISTINCT sensor) sensors,
+            SUM(CASE WHEN type='NEW' THEN 1 ELSE 0 END) starts,
+            SUM(CASE WHEN type='DESTROY' THEN 1 ELSE 0 END) ends,
+            SUM(CASE WHEN type='DESTROY' THEN bytes ELSE 0 END) bytes,
+            SUM(CASE WHEN type='DESTROY' THEN packets ELSE 0 END) packets
+          FROM flows WHERE ts >= ?
+        """, (cutoff,)).fetchone()
+        destinations = c.execute("""
+          SELECT dst,proto,dport,COUNT(*) events,
+            SUM(CASE WHEN type='NEW' THEN 1 ELSE 0 END) starts,
+            SUM(CASE WHEN type='DESTROY' THEN bytes ELSE 0 END) bytes
+          FROM flows WHERE ts >= ?
+          GROUP BY dst,proto,dport ORDER BY starts DESC,events DESC LIMIT 12
+        """, (cutoff,)).fetchall()
+        # Time buckets hold counts of NEW events, not policy allows.
+        bucket_seconds = max(60, (minutes * 60) // 24)
+        trend = c.execute("""
+          SELECT (ts / ?) * ? bucket,
+            SUM(CASE WHEN type='NEW' THEN 1 ELSE 0 END) starts,
+            SUM(CASE WHEN type='DESTROY' THEN 1 ELSE 0 END) ends
+          FROM flows WHERE ts >= ? GROUP BY bucket ORDER BY bucket
+          LIMIT 100
+        """, (bucket_seconds, bucket_seconds, cutoff)).fetchall()
+    return {
+        "window_minutes": minutes, "source": "linux_conntrack",
+        "policy_decisions_available": False,
+        "drops_available": False,
+        "counters_note": "Bytes and packets count completed conntrack sessions only and require kernel accounting.",
+        "total": {k: (totals[k] or 0) for k in totals.keys()},
+        "flows": [dict(row) for row in rows],
+        "destinations": [dict(row) for row in destinations],
+        "trend": [dict(row) for row in trend]
+    }
+
 def siem_status():
     """Local export status only; remote SIEM ingestion is not confirmed."""
     try:
@@ -411,6 +470,12 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(400, {"error": "bad query"})
         if route == "/api/stats":
             return self.reply(200, stats())
+        if route == "/api/traffic/analytics":
+            try:
+                minutes = number(qs.get("minutes", ["60"])[0], 10080)
+                return self.reply(200, flow_analytics(minutes, limit))
+            except ValueError as error:
+                return self.reply(400, {"error": str(error)})
         if route == "/api/siem/status":
             return self.reply(200, siem_status())
         if route == "/api/flows":
