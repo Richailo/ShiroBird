@@ -60,3 +60,9 @@ The browser adapter reads the current NetBird OIDC access token **only from same
 Do not expose port 8082 publicly; use HTTPS and administrative network restrictions. Treat traffic metadata as potentially sensitive. View [security](docs/security.md), run tests with `python3 -m unittest discover -s tests -v`, and keep `.env` private.
 
 MIT License — © 2026 ShiroBird contributors.
+
+### Traffic Flow analytics and sensor coverage
+
+The Traffic Flow page now includes time windows, aggregated conntrack sessions, trending, top destinations, per-peer IP/name enrichment from NetBird's read-only Peers API, and authenticated sensor heartbeats. The collector reports if Linux kernel byte accounting is disabled, so an empty or zero-byte dashboard is not mistaken for validated network coverage.
+
+**Important:** Traffic Flow does not yet provide NetBird policy allow/deny verdicts, blocked packet counts or verified routing policy IDs. Observing a conntrack NEW event does not prove a NetBird policy allowed it. Install sensors on actual Linux peers/routing gateways to capture their traffic. See [traffic collection, kernel accounting and coverage limitations](docs/traffic-flow.md).
