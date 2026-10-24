@@ -13,6 +13,8 @@
   ];
   let expanded = location.hash.startsWith(ROOT);
   let lastAuth = 0;
+  let peerDirectory = [];
+  let directoryFetchedAt = 0;
   let pendingAuth = null;
   let renderQueued = false;
 
@@ -142,10 +144,43 @@
     frame.referrerPolicy = "no-referrer";
     frame.loading = "lazy";
     frame.hidden = true;
-    frame.addEventListener("load", applyTheme);
+    frame.addEventListener("load", () => { applyTheme(); sendPeersToFrame(); });
     panel.append(message, frame);
     document.body.append(panel);
     return panel;
+  }
+  function sendPeersToFrame() {
+    const frame = document.querySelector("#" + VIEW_ID + " iframe");
+    if (!frame || !frame.contentWindow) return;
+    frame.contentWindow.postMessage({
+      source: "shirobird-peer-directory", peers: peerDirectory
+    }, location.origin);
+  }
+  async function updatePeerDirectory(token) {
+    if (Date.now() - directoryFetchedAt < 300000) {
+      sendPeersToFrame();
+      return;
+    }
+    try {
+      const response = await fetch("/api/peers", {
+        headers: {"Authorization": "Bearer " + token, "Accept": "application/json"},
+        credentials: "same-origin", cache: "no-store"
+      });
+      if (!response.ok) return;
+      const entries = await response.json();
+      if (!Array.isArray(entries)) return;
+      peerDirectory = entries.slice(0, 5000).filter(peer => peer && typeof peer === "object")
+        .map(peer => ({
+          id: String(peer.id || "").slice(0, 128),
+          name: String(peer.name || peer.dns_label || "").slice(0, 128),
+          ip: String(peer.ip || "").slice(0, 64),
+          ipv6: String(peer.ipv6 || "").slice(0, 64),
+          connected: Boolean(peer.connected),
+          os: String(peer.os || "").slice(0, 80)
+        }));
+      directoryFetchedAt = Date.now();
+      sendPeersToFrame();
+    } catch (_) { /* Optional peer enrichment; fail with bare IP. */ }
   }
   function applyTheme() {
     const frame = document.querySelector("#" + VIEW_ID + " iframe");
@@ -190,6 +225,7 @@
           ? "Only NetBird Owners and Admins can access ShiroBird."
           : "NetBird session verification failed.");
         lastAuth = Date.now();
+        if (selectedPage()?.slug === "traffic-flow") void updatePeerDirectory(token);
         frame.hidden = false;
         message.hidden = true;
         showPage();
