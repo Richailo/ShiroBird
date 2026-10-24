@@ -21,7 +21,7 @@
     let node = link.parentElement;
     while (node && node !== document.body) {
       const r = node.getBoundingClientRect();
-      if (r.left < 40 && r.width >= 120 && r.width < 420 && r.height > innerHeight * .4)
+      if (r.left < 40 && r.width >= 54 && r.width < 420 && r.height > innerHeight * .4)
         return node;
       node = node.parentElement;
     }
@@ -99,7 +99,7 @@
       if (!frame.hasAttribute("src")) frame.src = "/shirobird/";
       const sidebar = sidebarFrom(nav || navCandidate());
       const bounds = sidebar ? sidebar.getBoundingClientRect() : null;
-      const left = bounds && bounds.right > 120 && bounds.right < innerWidth * .55
+      const left = bounds && bounds.right > 48 && bounds.right < innerWidth * .55
         ? bounds.right : 0;
       panel.style.left = Math.round(left) + "px";
       panel.style.top = bounds && bounds.top >= 40 && bounds.top < 180
@@ -124,6 +124,15 @@
   window.addEventListener("hashchange", refresh);
   window.addEventListener("popstate", refresh);
   window.addEventListener("resize", refresh);
+  // NetBird uses buttons for its own routes; dismiss the overlay when one is selected.
+  document.addEventListener("click", event => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (!target.closest('button[data-testid="left-navigation-item"]')) return;
+    if (location.hash !== ROUTE) return;
+    history.replaceState(history.state, "", location.pathname + location.search);
+    refresh();
+  }, true);
   document.addEventListener("DOMContentLoaded", reconcile);
   reconcile();
 })();
