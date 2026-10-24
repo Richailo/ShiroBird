@@ -5,15 +5,16 @@
   window.__shirobirdIntegration = true;
   const ROUTE = "#shirobird", NAV_ID = "shirobird-nav-link", VIEW_ID = "shirobird-integrated-view";
   function navCandidate() {
-    const links = Array.from(document.querySelectorAll(
-      "aside a[href], nav a[href], [role='navigation'] a[href], [data-sidebar] a[href]"
-    )).filter(a => {
-      const r = a.getBoundingClientRect();
-      return r.left < 350 && r.width > 30 && r.height > 18
-        && a.getAttribute("href") !== ROUTE;
+    // NetBird v2 uses SidebarItem with button[data-testid], not anchor tags.
+    const buttons = Array.from(document.querySelectorAll(
+      'button[data-testid="left-navigation-item"]'
+    )).filter(button => {
+      const rect = button.getBoundingClientRect();
+      return rect.left < 350 && rect.width > 30 && rect.height > 18;
     });
-    return links.find(a => /settings|activity|audit/i.test(a.textContent || "")) ||
-      links[links.length - 1] || null;
+    return buttons.find(b => /^settings$/i.test((b.textContent || "").trim())) ||
+      buttons.find(b => /^activity$/i.test((b.textContent || "").trim())) ||
+      buttons[buttons.length - 1] || null;
   }
   function sidebarFrom(link) {
     if (!link) return null;
@@ -27,19 +28,35 @@
     return link.closest("aside,nav");
   }
   function addNavigation(reference) {
-    const link = document.createElement("a");
-    link.id = NAV_ID;
-    link.href = ROUTE;
-    link.className = reference.className;
-    link.setAttribute("aria-label", "ShiroBird");
-    const glyph = document.createElement("span");
-    glyph.className = "shirobird-glyph";
-    glyph.textContent = "◈";
-    glyph.setAttribute("aria-hidden", "true");
-    const text = document.createElement("span");
-    text.textContent = "ShiroBird";
-    link.append(glyph, text);
-    reference.insertAdjacentElement("afterend", link);
+    const original = reference.closest('[data-nav-item]') ||
+      reference.closest('li') || reference;
+    const holder = document.createElement('div');
+    holder.id = NAV_ID;
+    const li = document.createElement('li');
+    li.className = 'px-3 cursor-pointer list-none';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = reference.className;
+    button.setAttribute('aria-label', 'ShiroBird');
+    button.setAttribute('data-shirobird-tab', 'true');
+    const body = document.createElement('div');
+    body.className = 'flex w-full items-center shrink-0';
+    const glyph = document.createElement('span');
+    glyph.className = 'shirobird-glyph';
+    glyph.setAttribute('aria-hidden', 'true');
+    glyph.textContent = '◈';
+    const title = document.createElement('span');
+    title.className = 'px-3 whitespace-nowrap flex-1 w-full text-left';
+    title.textContent = 'ShiroBird';
+    body.append(glyph, title);
+    button.append(body);
+    li.append(button);
+    holder.append(li);
+    button.addEventListener('click', () => {
+      if (location.hash === ROUTE) refresh();
+      else location.hash = ROUTE;
+    });
+    original.insertAdjacentElement('afterend', holder);
   }
   function createPanel() {
     const host = document.createElement("section");
@@ -85,6 +102,8 @@
       const left = bounds && bounds.right > 120 && bounds.right < innerWidth * .55
         ? bounds.right : 0;
       panel.style.left = Math.round(left) + "px";
+      panel.style.top = bounds && bounds.top >= 40 && bounds.top < 180
+        ? Math.round(bounds.top) + "px" : "0px";
     }
   }
   let pending = false;
