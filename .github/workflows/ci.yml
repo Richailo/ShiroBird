@@ -10,6 +10,36 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - run: python -m unittest discover -s tests -v
       - run: python -m compileall -q shirobird
+      - run: bash -n scripts/install.sh scripts/install-collector.sh scripts/install-integrated.sh
+      - run: node --check integration/bridge.js
       - run: docker build -t shirobird:test .
+      - name: Dashboard bridge integration smoke test
+        run: |
+          docker network create netbird_netbird
+          docker run -d --name netbird-dashboard --network netbird_netbird nginx:stable-alpine
+          printf 'SHIROBIRD_ADMIN_TOKEN=%s\nSHIROBIRD_INGEST_TOKEN=%s\n' "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" > .env
+          docker compose -f compose.yaml -f compose.bridge.yaml up -d --build
+          for n in $(seq 1 30); do
+            if curl -fsS --max-time 2 http://127.0.0.1:8082/shirobird/healthz; then break; fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8082/ | grep -q 'shirobird-integration/bridge.js'
+          curl -fsS http://127.0.0.1:8082/shirobird-integration/bridge.js | grep -q 'left-navigation-item'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/api/stats)" = "401"
+          curl -fsS -D /tmp/shirobird-headers -o /dev/null http://127.0.0.1:8082/shirobird/
+          grep -qi '^X-Frame-Options: SAMEORIGIN' /tmp/shirobird-headers
+          test "$(curl -fsS http://127.0.0.1:8082/ | grep -o 'shirobird-integration/bridge.js' | wc -l)" -eq 1
+      - name: Bridge logs if failed
+        if: failure()
+        run: docker compose -f compose.yaml -f compose.bridge.yaml logs --no-color || true
+      - name: Clean up
+        if: always()
+        run: |
+          docker compose -f compose.yaml -f compose.bridge.yaml down || true
+          docker rm -f netbird-dashboard || true
+          docker network rm netbird_netbird || true
