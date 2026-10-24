@@ -1,0 +1,59 @@
+/* Isolated styling: does not override original NetBird layout. */
+#shirobird-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  min-height: 38px;
+  font-size: 13px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+#shirobird-nav-link .shirobird-glyph {
+  min-width: 21px;
+  text-align: center;
+  font-size: 19px;
+  color: #96a4ff;
+}
+#shirobird-nav-link:hover,
+#shirobird-nav-link.shirobird-active {
+  background: rgba(109, 134, 177, .18);
+}
+#shirobird-integrated-view {
+  position: fixed;
+  inset: 0 0 0 auto;
+  z-index: 2147480000;
+  background: #0c101a;
+  color: #eaf0fa;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -6px 0 30px #0002;
+}
+#shirobird-integrated-view[hidden] { display: none !important; }
+#shirobird-integrated-view .shirobird-toolbar {
+  flex: 0 0 56px;
+  background: #131e2f;
+  border-bottom: 1px solid #2c3c54;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  font: 600 14px system-ui, sans-serif;
+}
+#shirobird-integrated-view .shirobird-toolbar button {
+  border: 1px solid #42506d;
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: #25354e;
+  color: #ebf2fb;
+  cursor: pointer;
+}
+#shirobird-integrated-view iframe {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #0c101a;
+}
