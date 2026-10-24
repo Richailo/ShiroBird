@@ -23,6 +23,8 @@ SIEM_PATH = DATA / "siem" / "events.jsonl"
 ADMIN_KEY = os.getenv("SHIROBIRD_ADMIN_TOKEN", "")
 INGEST_KEY = os.getenv("SHIROBIRD_INGEST_TOKEN", "")
 COOKIE_SECURE = os.getenv("SHIROBIRD_COOKIE_SECURE", "true").lower() == "true"
+EMBEDDED = os.getenv("SHIROBIRD_EMBEDDED", "false").lower() == "true"
+COOKIE_PATH = "/shirobird/" if EMBEDDED else "/"
 RETENTION_DAYS = max(1, int(os.getenv("SHIROBIRD_RETENTION_DAYS", "30")))
 BIND = os.getenv("SHIROBIRD_BIND", "0.0.0.0")
 PORT = int(os.getenv("SHIROBIRD_PORT", "8666"))
@@ -151,12 +153,13 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", mime)
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("X-Frame-Options", "SAMEORIGIN" if EMBEDDED else "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Content-Security-Policy",
                          "default-src 'self'; script-src 'self'; style-src 'self'; "
-                         "connect-src 'self'; img-src 'self' data:; object-src 'none'; "
-                         "frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+                         "connect-src 'self'; img-src 'self' data:; object-src 'none'; " +
+                         ("frame-ancestors 'self'; " if EMBEDDED else "frame-ancestors 'none'; ") +
+                         "base-uri 'none'; form-action 'self'")
 
     def reply(self, status, data, mime="application/json; charset=utf-8"):
         body = data if isinstance(data, bytes) else json.dumps(data).encode()
@@ -219,7 +222,7 @@ class Handler(BaseHTTPRequestHandler):
             expire = int(time.time()) + 43200
             self.send_response(200)
             self.common_headers()
-            cookie = f"shirobird_session={session_value(expire)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=43200"
+            cookie = f"shirobird_session={session_value(expire)}; HttpOnly; SameSite=Strict; Path={COOKIE_PATH}; Max-Age=43200"
             if COOKIE_SECURE:
                 cookie += "; Secure"
             self.send_header("Set-Cookie", cookie)
@@ -231,7 +234,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(401, {"error": "unauthorized"})
             self.send_response(200)
             self.common_headers()
-            self.send_header("Set-Cookie", "shirobird_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0")
+            self.send_header("Set-Cookie", f"shirobird_session=; HttpOnly; SameSite=Strict; Path={COOKIE_PATH}; Max-Age=0")
             self.end_headers()
             self.wfile.write(b'{"ok":true}')
             return
