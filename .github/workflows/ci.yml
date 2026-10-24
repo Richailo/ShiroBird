@@ -36,6 +36,8 @@ jobs:
           curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=siem-integration' | grep -q 'id="siem-view"'
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/api/stats)" = "401"
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/api/siem/status)" = "401"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8082/shirobird/api/siem/syslog)" = "401"
+          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=siem-integration' | grep -q 'id="syslog-form"'
           curl -fsS -D /tmp/shirobird-headers -o /dev/null http://127.0.0.1:8082/shirobird/
           grep -qi '^X-Frame-Options: SAMEORIGIN' /tmp/shirobird-headers
           test "$(curl -fsS http://127.0.0.1:8082/ | grep -o 'shirobird-integration/bridge.js' | wc -l)" -eq 1
