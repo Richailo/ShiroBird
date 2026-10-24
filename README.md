@@ -43,4 +43,20 @@ On other Linux peers, clone this repository, install `conntrack`, then run `sudo
 
 `sudo docker compose up -d --build` upgrades ShiroBird after `git pull --ff-only`. `sudo docker compose down` stops only ShiroBird, without affecting NetBird. Database/exports stay in `./data`. Run `python3 -m unittest discover -s tests -v` for tests.
 
+## Integrate into the existing NetBird Dashboard
+
+To add a **ShiroBird** tab to the original NetBird web sidebar without patching
+NetBird or its Docker images, run this on the host with `netbird-dashboard`:
+
+```bash
+sudo bash scripts/install-integrated.sh
+```
+
+The optional Nginx sidecar runs on port 8082. Point **only** the dashboard
+upstream in your existing reverse proxy at that port. Preserve all existing
+NetBird management API, OAuth2, gRPC and WebSocket routes. If the reverse
+proxy is remote, bind the sidecar to your host's private LAN IP first.
+See [NetBird dashboard tab instructions](docs/netbird-tab.md) for the
+complete setup, compatibility considerations, rollback and security.
+
 Read [Wazuh export](docs/wazuh.md) and [Security](docs/security.md). Released under the MIT license. **Keep `.env` and all credentials private.**
