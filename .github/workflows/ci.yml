@@ -24,7 +24,7 @@ jobs:
           docker run -d --name netbird-dashboard --network netbird_netbird nginx:stable-alpine
           sudo bash scripts/install.sh
           test -L compose.override.yaml
-          grep -q '^SHIROBIRD_NETBIRD_NETWORK=netbird_netbird' .env
+          sudo grep -q '^SHIROBIRD_NETBIRD_NETWORK=netbird_netbird' .env
           for n in $(seq 1 30); do
             if curl -fsS --max-time 2 http://127.0.0.1:8082/shirobird/healthz; then break; fi
             sleep 2
