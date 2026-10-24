@@ -1,24 +1,19 @@
-/* Isolated styling: does not override original NetBird layout. */
-#shirobird-nav-link {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  min-height: 38px;
-  font-size: 13px;
-  border-radius: 8px;
-  text-decoration: none;
-  color: inherit;
+/* Scoped to ShiroBird; replicates native NetBird SidebarItem button shape. */
+#shirobird-nav-link button {
+  width: 100%;
+  display: block;
+  text-align: left;
   cursor: pointer;
 }
-#shirobird-nav-link .shirobird-glyph {
-  min-width: 21px;
+#shirobird-nav-link button .shirobird-glyph {
+  min-width: 16px;
   text-align: center;
-  font-size: 19px;
+  line-height: 1;
   color: #96a4ff;
+  font-size: 17px;
 }
-#shirobird-nav-link:hover,
-#shirobird-nav-link.shirobird-active {
+#shirobird-nav-link button:hover,
+#shirobird-nav-link.shirobird-active button {
   background: rgba(109, 134, 177, .18);
 }
 #shirobird-integrated-view {
