@@ -3,16 +3,27 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 test "$(id -u)" -eq 0 || { echo "Run with sudo/root"; exit 1; }
 command -v conntrack >/dev/null || { echo "Install conntrack first (apt install conntrack)"; exit 1; }
-test -f .env || { echo "Install server first or create .env"; exit 1; }
 umask 077
 install -d -m 700 /etc/shirobird
 install -m 644 shirobird/collector.py /usr/local/lib/shirobird-collector.py
-TOKEN="$(sed -n 's/^SHIROBIRD_INGEST_TOKEN=//p' .env)"
-test "${#TOKEN}" -ge 32 || { echo "Invalid ingest token"; exit 1; }
+if [[ -f .env ]]; then
+  TOKEN="$(sed -n 's/^SHIROBIRD_INGEST_TOKEN=//p' .env)"
+  URL="http://127.0.0.1:8666"
+else
+  read -r -p "ShiroBird HTTPS server URL: " URL
+  read -r -s -p "ShiroBird ingest token: " TOKEN
+  echo
+fi
+test "${#TOKEN}" -ge 32 || { echo "Invalid ingest token (32+ characters required)"; exit 1; }
+case "$URL" in
+  https://*|http://127.0.0.1:*|http://localhost:*) ;;
+  *) echo "Use HTTPS for remote collection; HTTP is only permitted locally"; exit 1 ;;
+esac
+HOSTNAME_SENSOR="$(hostname)"
 cat > /etc/shirobird/collector.env <<EOF
-SHIROBIRD_SERVER_URL=http://127.0.0.1:8666
+SHIROBIRD_SERVER_URL=$URL
 SHIROBIRD_INGEST_TOKEN=$TOKEN
-SHIROBIRD_SENSOR=$(hostname)
+SHIROBIRD_SENSOR=$HOSTNAME_SENSOR
 SHIROBIRD_NETWORKS=100.64.0.0/10
 EOF
 chmod 600 /etc/shirobird/collector.env
