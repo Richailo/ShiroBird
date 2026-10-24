@@ -25,7 +25,7 @@ jobs:
           printf 'SHIROBIRD_ADMIN_TOKEN=%s\nSHIROBIRD_INGEST_TOKEN=%s\n' "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" > .env
           mkdir -p data/siem
           sudo chown -R 65532:65532 data
-          chmod 700 data
+          sudo chmod 700 data
           docker compose -f compose.yaml -f compose.bridge.yaml up -d --build
           for n in $(seq 1 30); do
             if curl -fsS --max-time 2 http://127.0.0.1:8082/shirobird/healthz; then break; fi
