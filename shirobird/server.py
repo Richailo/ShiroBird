@@ -42,9 +42,11 @@ WRITE_LOCK = threading.Lock()
 STREAM_SLOTS = threading.BoundedSemaphore(12)
 FAILED_LOGINS = {}
 LOGIN_LOCK = threading.Lock()
-VALID_TYPES = {"NEW", "DESTROY", "UPDATE", "SAMPLE"}
+VALID_TYPES = {"NEW", "DESTROY", "UPDATE", "SAMPLE", "ALLOW", "BLOCK", "DROP"}
 FIELDS = ("id", "ts", "sensor", "type", "proto", "src", "dst",
-          "sport", "dport", "packets", "bytes")
+          "sport", "dport", "packets", "bytes",
+          "source", "direction", "application", "filter_id", "event_ref")
+INSERT_FIELDS = FIELDS[1:]
 
 def connection():
     con = sqlite3.connect(DB_PATH, timeout=20)
@@ -65,6 +67,19 @@ def init_db():
             packets INTEGER NOT NULL DEFAULT 0, bytes INTEGER NOT NULL DEFAULT 0)""")
         c.execute("CREATE INDEX IF NOT EXISTS flows_ts ON flows(ts)")
         c.execute("CREATE INDEX IF NOT EXISTS flows_sensor ON flows(sensor,ts)")
+        # Forward-only additive migration: preserve existing conntrack history.
+        existing = {row[1] for row in c.execute("PRAGMA table_info(flows)")}
+        for column, definition in (
+            ("source", "TEXT NOT NULL DEFAULT 'linux_conntrack'"),
+            ("direction", "TEXT NOT NULL DEFAULT 'unknown'"),
+            ("application", "TEXT NOT NULL DEFAULT ''"),
+            ("filter_id", "TEXT NOT NULL DEFAULT ''"),
+            ("event_ref", "TEXT NOT NULL DEFAULT ''"),
+        ):
+            if column not in existing:
+                c.execute(f"ALTER TABLE flows ADD COLUMN {column} {definition}")
+        c.execute("""CREATE UNIQUE INDEX IF NOT EXISTS flows_event_ref
+            ON flows(sensor,source,event_ref) WHERE event_ref != ''""")
         c.execute("""CREATE TABLE IF NOT EXISTS sensors (
             name TEXT PRIMARY KEY, last_seen INTEGER NOT NULL,
             accounting_enabled INTEGER NOT NULL, source TEXT NOT NULL
@@ -91,6 +106,13 @@ def validate_event(raw, sensor):
     event_type = clean_str(raw.get("type", ""), 16).upper()
     if event_type not in VALID_TYPES:
         raise ValueError("unsupported event type")
+    source = clean_str(raw.get("source", "linux_conntrack"), 24)
+    if source not in {"linux_conntrack", "windows_wfp"}:
+        raise ValueError("unsupported telemetry source")
+    if source == "windows_wfp" and event_type not in {"ALLOW", "BLOCK", "DROP"}:
+        raise ValueError("WFP source requires a WFP decision event")
+    if source == "linux_conntrack" and event_type in {"ALLOW", "BLOCK", "DROP"}:
+        raise ValueError("conntrack cannot provide firewall verdicts")
     proto = clean_str(raw.get("proto", ""), 12).lower()
     if proto not in {"tcp", "udp", "icmp", "icmpv6", "sctp"}:
         raise ValueError("unsupported protocol")
@@ -99,10 +121,27 @@ def validate_event(raw, sensor):
     ts = number(raw.get("ts", int(time.time())), 4102444800)
     if ts < 946684800:
         raise ValueError("invalid timestamp")
+    direction = raw.get("direction", "unknown")
+    if direction not in {"unknown", "inbound", "outbound"}:
+        raise ValueError("unsupported direction")
+    application = raw.get("application", "")
+    if not isinstance(application, str) or len(application) > 320 or any(ord(c) < 32 for c in application):
+        raise ValueError("invalid application name")
+    filter_id = str(raw.get("filter_id", ""))
+    if len(filter_id) > 30 or (filter_id and not filter_id.isascii() or
+                              filter_id and not filter_id.isdecimal()):
+        raise ValueError("invalid WFP runtime filter ID")
+    event_ref = str(raw.get("event_ref", ""))
+    if len(event_ref) > 100 or any(ord(c) < 33 or ord(c) > 126 for c in event_ref):
+        raise ValueError("invalid event reference")
+    if source == "windows_wfp" and not event_ref.startswith("security:"):
+        raise ValueError("WFP events need a Security record reference for deduplication")
     return (ts, sensor, event_type, proto, src, dst,
             number(raw.get("sport", 0), 65535), number(raw.get("dport", 0), 65535),
             number(raw.get("packets", 0), 10**13),
-            number(raw.get("bytes", 0), 10**16))
+            number(raw.get("bytes", 0), 10**16),
+            source, direction, application, filter_id, event_ref)
+
 
 def syslog_settings():
     """Read persisted configuration; environment acts as initial/default config."""
@@ -166,34 +205,41 @@ def send_syslog(settings, event, kind="flow"):
         conn.sendto(message, address[4])
 
 def write_events(events, sensor):
+    sensor = clean_str(sensor, 80)
     rows = [validate_event(event, sensor) for event in events]
+    accepted = []
     with WRITE_LOCK:
         with connection() as c:
-            c.executemany("""INSERT INTO flows
-                (ts,sensor,type,proto,src,dst,sport,dport,packets,bytes)
-                VALUES (?,?,?,?,?,?,?,?,?,?)""", rows)
-        with SIEM_PATH.open("a", encoding="utf-8") as file:
             for row in rows:
-                event = dict(zip(FIELDS[1:], row))
-                event["integration"] = "shirobird"
-                file.write(json.dumps(event, separators=(",", ":")) + "\n")
-            file.flush()
-        config = syslog_settings()
-        if config["enabled"]:
-            for row in rows:
-                try:
-                    event = dict(zip(FIELDS[1:], row))
+                inserted = c.execute("""INSERT OR IGNORE INTO flows
+                    (ts,sensor,type,proto,src,dst,sport,dport,packets,bytes,
+                     source,direction,application,filter_id,event_ref)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", row)
+                if inserted.rowcount:
+                    accepted.append(row)
+        if accepted:
+            with SIEM_PATH.open("a", encoding="utf-8") as file:
+                for row in accepted:
+                    event = dict(zip(INSERT_FIELDS, row))
                     event["integration"] = "shirobird"
-                    send_syslog(config, event)
-                except (OSError, ValueError) as error:
-                    print(f"syslog export failed: {error}", flush=True)
-    return len(rows)
+                    file.write(json.dumps(event, separators=(",", ":")) + "\n")
+                file.flush()
+            config = syslog_settings()
+            if config["enabled"]:
+                for row in accepted:
+                    try:
+                        event = dict(zip(INSERT_FIELDS, row))
+                        event["integration"] = "shirobird"
+                        send_syslog(config, event)
+                    except (OSError, ValueError) as error:
+                        print(f"syslog export failed: {error}", flush=True)
+    return len(accepted)
 
 def touch_sensor(name, accounting_enabled=False, source="linux_conntrack"):
     name = clean_str(name, 80)
     if type(accounting_enabled) is not bool:
         raise ValueError("accounting_enabled must be boolean")
-    if source != "linux_conntrack":
+    if source not in {"linux_conntrack", "windows_wfp"}:
         raise ValueError("unsupported sensor source")
     with connection() as c:
         c.execute("""INSERT INTO sensors(name,last_seen,accounting_enabled,source)
