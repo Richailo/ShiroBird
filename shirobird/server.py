@@ -65,6 +65,10 @@ def init_db():
             packets INTEGER NOT NULL DEFAULT 0, bytes INTEGER NOT NULL DEFAULT 0)""")
         c.execute("CREATE INDEX IF NOT EXISTS flows_ts ON flows(ts)")
         c.execute("CREATE INDEX IF NOT EXISTS flows_sensor ON flows(sensor,ts)")
+        c.execute("""CREATE TABLE IF NOT EXISTS sensors (
+            name TEXT PRIMARY KEY, last_seen INTEGER NOT NULL,
+            accounting_enabled INTEGER NOT NULL, source TEXT NOT NULL
+        )""")
 
 def clean_str(value, maximum):
     if not isinstance(value, str) or not value or len(value) > maximum:
@@ -184,6 +188,32 @@ def write_events(events, sensor):
                 except (OSError, ValueError) as error:
                     print(f"syslog export failed: {error}", flush=True)
     return len(rows)
+
+def touch_sensor(name, accounting_enabled=False, source="linux_conntrack"):
+    name = clean_str(name, 80)
+    if type(accounting_enabled) is not bool:
+        raise ValueError("accounting_enabled must be boolean")
+    if source != "linux_conntrack":
+        raise ValueError("unsupported sensor source")
+    with connection() as c:
+        c.execute("""INSERT INTO sensors(name,last_seen,accounting_enabled,source)
+            VALUES (?,?,?,?)
+            ON CONFLICT(name) DO UPDATE SET
+                last_seen=excluded.last_seen,
+                accounting_enabled=excluded.accounting_enabled,
+                source=excluded.source
+        """, (name, int(time.time()), int(accounting_enabled), source))
+
+def sensor_status():
+    with connection() as c:
+        rows = c.execute("""SELECT name,last_seen,accounting_enabled,source FROM sensors
+              ORDER BY last_seen DESC LIMIT 200""").fetchall()
+    return {"sensors": [
+        {"name": r["name"], "last_seen": r["last_seen"],
+         "online": r["last_seen"] >= int(time.time()) - 120,
+         "accounting_enabled": bool(r["accounting_enabled"]), "source": r["source"]}
+        for r in rows
+    ], "freshness_seconds": 120}
 
 def flow_analytics(minutes=60, limit=300):
     """Windowed conntrack flow groups. NEW=observed start, DESTROY=end.
@@ -433,6 +463,19 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(400, {"error": str(error)})
             except OSError:
                 return self.reply(502, {"error": "syslog socket send failed"})
+        if route == "/api/sensors/heartbeat":
+            if not self.ingest_authorized():
+                return self.reply(401, {"error": "unauthorized"})
+            try:
+                details = self.body_json()
+                if not isinstance(details, dict):
+                    raise ValueError("object expected")
+                touch_sensor(details.get("sensor"),
+                             details.get("accounting_enabled", False),
+                             details.get("source", "linux_conntrack"))
+                return self.reply(202, {"accepted": True})
+            except (ValueError, TypeError) as error:
+                return self.reply(400, {"error": str(error)})
         if route == "/api/ingest":
             if not self.ingest_authorized():
                 return self.reply(401, {"error": "unauthorized"})
@@ -470,6 +513,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(400, {"error": "bad query"})
         if route == "/api/stats":
             return self.reply(200, stats())
+        if route == "/api/traffic/sensors":
+            return self.reply(200, sensor_status())
         if route == "/api/traffic/analytics":
             try:
                 minutes = number(qs.get("minutes", ["60"])[0], 10080)
