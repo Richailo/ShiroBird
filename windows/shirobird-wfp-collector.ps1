@@ -56,17 +56,19 @@ while ($true) {
         # EventLogReader is forward-only; never request the last N newest events,
         # which would silently discard intermediate high-volume audit events.
         $xpath = "*[System[((EventID=5156) or (EventID=5157) or (EventID=5152)) and (EventRecordID > $cursor)]]"
-        $query = New-Object System.Diagnostics.Eventing.Reader.EventLogQuery(
+        $query = [System.Diagnostics.Eventing.Reader.EventLogQuery]::new(
             'Security', [System.Diagnostics.Eventing.Reader.PathType]::LogName, $xpath)
         $query.ReverseDirection = $false
-        $reader = New-Object System.Diagnostics.Eventing.Reader.EventLogReader($query)
+        $reader = [System.Diagnostics.Eventing.Reader.EventLogReader]::new($query)
         $batch = New-Object System.Collections.ArrayList
         $batchCursor = $cursor
+        $processed = 0
         try {
             while ($batchCursor -ge $cursor) {
                 $record = $reader.ReadEvent()
                 if ($null -eq $record) { break }
                 try {
+                    $processed++
                     $batchCursor = [long]$record.RecordId
                     $ev = ConvertTo-ShiroBirdWfpEvent -EventXml ($record.ToXml()) -Networks $networks
                     if ($null -ne $ev) { [void]$batch.Add($ev) }
@@ -82,6 +84,7 @@ while ($true) {
                     $cursor = $batchCursor
                     $batch.Clear()
                 }
+                if ($processed -ge 500) { break }
             }
         } finally { $reader.Dispose() }
         if ($batchCursor -gt $cursor) {
