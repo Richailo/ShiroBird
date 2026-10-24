@@ -117,3 +117,37 @@ body.embedded .overlay[data-netbird="1"]::before{
 .siem-syslog-fields input{width:100%}
 #syslog-message{min-height:20px;margin:0}
 @media(max-width:740px){.siem-syslog-fields{grid-template-columns:1fr}}
+
+/* Traffic Events-style analysis; scoped to ShiroBird's Traffic Flow view */
+.flow-tools{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin:16px 0}
+.flow-tools label{display:grid;gap:6px;font-size:12px;color:var(--muted);font-weight:500}
+.flow-tools select{min-width:144px;padding:9px 11px;min-height:37px;
+  background:var(--field);color:var(--text);border:1px solid var(--stroke);border-radius:7px}
+.flow-tools input{min-width:220px}
+.flow-caveat{display:block;color:var(--muted);font-size:12px;line-height:1.5;margin:9px 0 20px}
+.flow-analytics-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);
+  gap:16px;margin:18px 0 20px;align-items:stretch}
+.flow-chart{min-height:220px;height:220px;padding:20px;display:flex;gap:5px;
+  align-items:flex-end;justify-content:center;overflow:hidden}
+.flow-trend-bar{display:flex;align-items:center;justify-content:flex-end;
+  flex-direction:column;min-width:8px;max-width:30px;flex:1;position:relative;
+  border-radius:4px 4px 1px 1px;background:var(--primary);opacity:.82}
+.flow-trend-bar span{font-size:9px;font-variant-numeric:tabular-nums;
+  color:var(--text);position:absolute;bottom:calc(100% + 3px);display:none}
+.flow-trend-bar:hover{opacity:1}
+.flow-trend-bar:hover span{display:block}
+.flow-chart p{align-self:center;color:var(--muted)}
+.flow-top{padding:14px 18px;max-height:310px;overflow:auto}
+.flow-top-line{display:grid;grid-template-columns:minmax(0,1fr) auto;
+  gap:7px 10px;margin:9px 0 14px;font-size:12px}
+.flow-top-line span{min-width:0;overflow-wrap:anywhere;color:var(--text)}
+.flow-top-line strong{font-variant-numeric:tabular-nums}
+.flow-top-bar{grid-column:1/-1;background:var(--soft);height:5px;border-radius:5px;overflow:hidden}
+.flow-top-bar i{display:block;height:100%;background:var(--primary);border-radius:5px}
+.flow-group-panel{margin-bottom:18px}
+.flow-group-panel table{min-width:1080px}
+.flow-group-panel td{font-size:12px;vertical-align:top}
+.flow-group-panel td:nth-child(2),.flow-group-panel td:nth-child(3){overflow-wrap:anywhere;max-width:245px}
+@media(max-width:1040px){.flow-analytics-grid{grid-template-columns:1fr}}
+@media(max-width:680px){.flow-tools label,.flow-tools input,.flow-tools select{width:100%;min-width:0}
+.flow-tools{align-items:stretch;flex-direction:column}}
