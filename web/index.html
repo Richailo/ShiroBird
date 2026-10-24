@@ -53,6 +53,16 @@
         <button class="secondary" id="flow-analytics-refresh" type="button">Refresh analytics</button>
       </div>
       <p class="flow-caveat" id="flow-telemetry-note">Observed Linux conntrack sessions, not verified NetBird policy decisions. Dropped packets require separate on-peer telemetry.</p>
+      <section class="panel flow-sensor-panel" aria-label="Sensor coverage">
+        <div class="panelhead">
+          <div><h2>Collector coverage</h2>
+            <p>Shows actual reporter heartbeats; NetBird management is not a packet sensor</p></div>
+          <span id="flow-sensor-count" class="status">Checking sensors…</span>
+        </div>
+        <div id="flow-sensor-list" class="flow-sensor-list">
+          <p>No reporting sensors detected yet</p>
+        </div>
+      </section>
       <section class="stats" aria-label="Flow analytics">
         <article><span>Observed starts</span><strong id="flow-starts">—</strong></article>
         <article><span>Observed ends</span><strong id="flow-ends">—</strong></article>
