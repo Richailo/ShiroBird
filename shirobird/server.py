@@ -262,9 +262,9 @@ def sensor_status():
     ], "freshness_seconds": 120}
 
 def flow_analytics(minutes=60, limit=300):
-    """Windowed conntrack flow groups. NEW=observed start, DESTROY=end.
-    Neither means NetBird policy 'allow', and drops cannot be inferred.
-    Completed-session byte counts are summed once, not on each update.
+    """Group observed connections; WFP ALLOW/BLOCK/DROP are OS decisions,
+    not proof of a particular NetBird access policy.
+    Completed Linux conntrack byte counters are counted exactly once.
     """
     if minutes not in (15, 60, 360, 1440, 10080):
         raise ValueError("unsupported time window")
@@ -272,53 +272,64 @@ def flow_analytics(minutes=60, limit=300):
     cutoff = int(time.time()) - minutes * 60
     with connection() as c:
         rows = c.execute("""
-          SELECT sensor,proto,src,dst,dport,
+          SELECT sensor,source,proto,src,dst,dport,direction,application,filter_id,
             MIN(ts) first_seen,MAX(ts) last_seen,
             SUM(CASE WHEN type='NEW' THEN 1 ELSE 0 END) starts,
             SUM(CASE WHEN type='DESTROY' THEN 1 ELSE 0 END) ends,
             SUM(CASE WHEN type='UPDATE' THEN 1 ELSE 0 END) updates,
+            SUM(CASE WHEN type='ALLOW' THEN 1 ELSE 0 END) allows,
+            SUM(CASE WHEN type='BLOCK' THEN 1 ELSE 0 END) blocks,
+            SUM(CASE WHEN type='DROP' THEN 1 ELSE 0 END) drops,
             SUM(CASE WHEN type='DESTROY' THEN bytes ELSE 0 END) bytes,
             SUM(CASE WHEN type='DESTROY' THEN packets ELSE 0 END) packets
           FROM flows WHERE ts >= ?
-          GROUP BY sensor,proto,src,dst,dport
-          ORDER BY last_seen DESC
-          LIMIT ?
+          GROUP BY sensor,source,proto,src,dst,dport,direction,application,filter_id
+          ORDER BY last_seen DESC LIMIT ?
         """, (cutoff, limit)).fetchall()
         totals = c.execute("""
-          SELECT COUNT(*) events,
-            COUNT(DISTINCT sensor) sensors,
+          SELECT COUNT(*) events,COUNT(DISTINCT sensor) sensors,
             SUM(CASE WHEN type='NEW' THEN 1 ELSE 0 END) starts,
             SUM(CASE WHEN type='DESTROY' THEN 1 ELSE 0 END) ends,
+            SUM(CASE WHEN type='ALLOW' THEN 1 ELSE 0 END) allows,
+            SUM(CASE WHEN type='BLOCK' THEN 1 ELSE 0 END) blocks,
+            SUM(CASE WHEN type='DROP' THEN 1 ELSE 0 END) drops,
             SUM(CASE WHEN type='DESTROY' THEN bytes ELSE 0 END) bytes,
             SUM(CASE WHEN type='DESTROY' THEN packets ELSE 0 END) packets
           FROM flows WHERE ts >= ?
         """, (cutoff,)).fetchone()
         destinations = c.execute("""
           SELECT dst,proto,dport,COUNT(*) events,
-            SUM(CASE WHEN type='NEW' THEN 1 ELSE 0 END) starts,
+            SUM(CASE WHEN type IN ('NEW','ALLOW') THEN 1 ELSE 0 END) starts,
+            SUM(CASE WHEN type IN ('BLOCK','DROP') THEN 1 ELSE 0 END) blocked,
             SUM(CASE WHEN type='DESTROY' THEN bytes ELSE 0 END) bytes
           FROM flows WHERE ts >= ?
-          GROUP BY dst,proto,dport ORDER BY starts DESC,events DESC LIMIT 12
+          GROUP BY dst,proto,dport
+          ORDER BY starts DESC,events DESC LIMIT 12
         """, (cutoff,)).fetchall()
-        # Time buckets hold counts of NEW events, not policy allows.
         bucket_seconds = max(60, (minutes * 60) // 24)
         trend = c.execute("""
           SELECT (ts / ?) * ? bucket,
-            SUM(CASE WHEN type='NEW' THEN 1 ELSE 0 END) starts,
-            SUM(CASE WHEN type='DESTROY' THEN 1 ELSE 0 END) ends
-          FROM flows WHERE ts >= ? GROUP BY bucket ORDER BY bucket
-          LIMIT 100
+            SUM(CASE WHEN type IN ('NEW','ALLOW') THEN 1 ELSE 0 END) starts,
+            SUM(CASE WHEN type='DESTROY' THEN 1 ELSE 0 END) ends,
+            SUM(CASE WHEN type IN ('BLOCK','DROP') THEN 1 ELSE 0 END) blocked
+          FROM flows WHERE ts >= ? GROUP BY bucket ORDER BY bucket LIMIT 100
         """, (bucket_seconds, bucket_seconds, cutoff)).fetchall()
+        wfp = c.execute("""SELECT COUNT(*) FROM flows
+            WHERE ts >= ? AND source='windows_wfp'""", (cutoff,)).fetchone()[0]
     return {
-        "window_minutes": minutes, "source": "linux_conntrack",
+        "window_minutes": minutes,
+        "sources": ["linux_conntrack"] + (["windows_wfp"] if wfp else []),
         "policy_decisions_available": False,
-        "drops_available": False,
-        "counters_note": "Bytes and packets count completed conntrack sessions only and require kernel accounting.",
+        "wfp_decisions_available": bool(wfp),
+        "drops_available": bool(wfp),
+        "counters_note": "Completed Linux conntrack sessions report bytes only if kernel accounting was enabled; WFP audits do not contain byte counts.",
+        "verdict_note": "Windows WFP allow/block/drop events reflect OS filtering, not necessarily NetBird access policies.",
         "total": {k: (totals[k] or 0) for k in totals.keys()},
         "flows": [dict(row) for row in rows],
         "destinations": [dict(row) for row in destinations],
         "trend": [dict(row) for row in trend]
     }
+
 
 def siem_status():
     """Local export status only; remote SIEM ingestion is not confirmed."""
