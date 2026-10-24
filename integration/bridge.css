@@ -1,54 +1,19 @@
-/* Scoped to ShiroBird; replicates native NetBird SidebarItem button shape. */
-#shirobird-nav-link button {
-  width: 100%;
-  display: block;
-  text-align: left;
-  cursor: pointer;
-}
-#shirobird-nav-link button .shirobird-glyph {
-  min-width: 16px;
-  text-align: center;
-  line-height: 1;
-  color: #96a4ff;
-  font-size: 17px;
-}
-#shirobird-nav-link button:hover,
-#shirobird-nav-link.shirobird-active button {
-  background: rgba(109, 134, 177, .18);
-}
-#shirobird-integrated-view {
-  position: fixed;
-  inset: 0 0 0 auto;
-  z-index: 2147480000;
-  background: #0c101a;
-  color: #eaf0fa;
-  display: flex;
-  flex-direction: column;
-  box-shadow: -6px 0 30px #0002;
-}
-#shirobird-integrated-view[hidden] { display: none !important; }
-#shirobird-integrated-view .shirobird-toolbar {
-  flex: 0 0 56px;
-  background: #131e2f;
-  border-bottom: 1px solid #2c3c54;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 20px;
-  font: 600 14px system-ui, sans-serif;
-}
-#shirobird-integrated-view .shirobird-toolbar button {
-  border: 1px solid #42506d;
-  border-radius: 8px;
-  padding: 8px 12px;
-  background: #25354e;
-  color: #ebf2fb;
-  cursor: pointer;
-}
-#shirobird-integrated-view iframe {
-  flex: 1 1 auto;
-  width: 100%;
-  height: 100%;
-  border: 0;
-  background: #0c101a;
-}
+/* ShiroBird adapter styles are scoped and cannot change native NetBird components. */
+#shirobird-nav-link button{width:100%;display:block;text-align:left;cursor:pointer}
+#shirobird-nav-link button .shirobird-glyph{min-width:16px;text-align:center;
+  line-height:1;color:#6c75de;font-size:17px}
+#shirobird-nav-link button:hover,#shirobird-nav-link.shirobird-active button{
+  background:rgba(109,134,177,.18)}
+#shirobird-integrated-view{
+  position:fixed;inset:0 0 0 auto;z-index:2147480000;
+  background:#fff;color:#161b23;display:flex;flex-direction:column}
+html.dark #shirobird-integrated-view{background:#111215;color:#f4f4f6}
+#shirobird-integrated-view[hidden]{display:none!important}
+#shirobird-integrated-view iframe{flex:1 1 auto;width:100%;
+  height:100%;border:0;background:transparent}
+#shirobird-integrated-view iframe[hidden]{display:none!important}
+#shirobird-integrated-view .shirobird-auth-message{
+  flex:1;display:grid;place-items:center;text-align:center;padding:30px;
+  color:#5d6471;font:500 14px Inter,system-ui,sans-serif}
+html.dark #shirobird-integrated-view .shirobird-auth-message{color:#a2a3ac}
+#shirobird-integrated-view .shirobird-auth-message[hidden]{display:none!important}
