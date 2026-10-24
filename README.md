@@ -33,7 +33,7 @@ sudo bash scripts/install-collector.sh
 sudo systemctl status shirobird-collector
 ```
 
-On other Linux peers, provision `collector.py` and `/etc/shirobird/collector.env` securely; set `SHIROBIRD_SERVER_URL=https://YOUR_REVERSE_PROXY` and the appropriate ingest token. Restart only the ShiroBird collector. Configure `SHIROBIRD_NETWORKS` with comma-separated CIDRs; default `100.64.0.0/10` filters addresses (not interfaces). IPv6 needs explicitly configured networks.
+On other Linux peers, clone this repository, install `conntrack`, then run `sudo bash scripts/install-collector.sh`. The script prompts for the ShiroBird **HTTPS** address and ingest token without echoing the token. Restart only the ShiroBird collector. Configure `SHIROBIRD_NETWORKS` in `/etc/shirobird/collector.env` with comma-separated CIDRs; default `100.64.0.0/10` filters addresses (not interfaces). IPv6 needs explicitly configured networks. Byte counters require kernel connection tracking accounting (`net.netfilter.nf_conntrack_acct=1`); enabling this globally is an optional administrative decision.
 
 ## Limitations
 
