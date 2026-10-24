@@ -21,6 +21,7 @@ services:
     read_only: true
     tmpfs: ["/var/cache/nginx:rw,nosuid,size=16m", "/var/run:rw,nosuid,size=2m"]
     cap_drop: [ALL]
+    cap_add: [CHOWN, SETUID, SETGID]
     security_opt: ["no-new-privileges:true"]
     pids_limit: 64
     mem_limit: 128m
