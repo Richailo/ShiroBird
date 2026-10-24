@@ -6,6 +6,7 @@ import io
 import ipaddress
 import json
 import os
+import re
 from pathlib import Path
 import secrets
 import socket
@@ -33,6 +34,8 @@ BIND = os.getenv("SHIROBIRD_BIND", "0.0.0.0")
 PORT = int(os.getenv("SHIROBIRD_PORT", "8666"))
 SYSLOG_TARGET = os.getenv("SHIROBIRD_SYSLOG_HOST", "")
 SYSLOG_PORT = int(os.getenv("SHIROBIRD_SYSLOG_PORT", "514"))
+SIEM_SETTINGS_PATH = SIEM_PATH.parent / "settings.json"
+HOST_LOG_PATH = os.getenv("SHIROBIRD_HOST_LOG_PATH", "/opt/shirobird/data/siem/events.jsonl")
 MAX_BODY = 1024 * 1024
 MAX_QUERY = 10000
 WRITE_LOCK = threading.Lock()
@@ -97,51 +100,110 @@ def validate_event(raw, sensor):
             number(raw.get("packets", 0), 10**13),
             number(raw.get("bytes", 0), 10**16))
 
+def syslog_settings():
+    """Read persisted configuration; environment acts as initial/default config."""
+    initial = {"enabled": bool(SYSLOG_TARGET), "host": SYSLOG_TARGET,
+               "port": SYSLOG_PORT, "protocol": "udp"}
+    try:
+        stored = json.loads(SIEM_SETTINGS_PATH.read_text(encoding="utf-8"))
+        return validate_syslog_settings(stored)
+    except FileNotFoundError:
+        return initial
+    except (ValueError, OSError, TypeError) as error:
+        print(f"invalid SIEM config (syslog disabled): {error}", flush=True)
+        return {"enabled": False, "host": "", "port": 514, "protocol": "udp"}
+
+def validate_syslog_settings(obj):
+    if not isinstance(obj, dict):
+        raise ValueError("syslog settings must be a JSON object")
+    if set(obj) != {"enabled", "host", "port", "protocol"}:
+        raise ValueError("unexpected syslog settings fields")
+    if type(obj["enabled"]) is not bool:
+        raise ValueError("enabled must be true or false")
+    host = str(obj["host"]).strip()
+    if len(host) > 253 or not host and obj["enabled"]:
+        raise ValueError("provide a syslog destination")
+    if host and not (re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.-]*", host)
+                     or re.fullmatch(r"[0-9a-fA-F:]+", host)):
+        raise ValueError("invalid hostname or IP address")
+    port = number(obj["port"], 65535)
+    if port == 0:
+        raise ValueError("invalid syslog port")
+    if obj["protocol"] != "udp":
+        raise ValueError("only UDP syslog is currently supported")
+    return {"enabled": obj["enabled"], "host": host, "port": port, "protocol": "udp"}
+
+def save_syslog_settings(obj):
+    settings = validate_syslog_settings(obj)
+    with WRITE_LOCK:
+        path = SIEM_SETTINGS_PATH.with_suffix(".tmp")
+        try:
+            with path.open("w", encoding="utf-8") as output:
+                json.dump(settings, output, separators=(",", ":"))
+                output.flush()
+                os.fsync(output.fileno())
+            os.chmod(path, 0o600)
+            os.replace(path, SIEM_SETTINGS_PATH)
+        finally:
+            path.unlink(missing_ok=True)
+    return settings
+
+def send_syslog(settings, event, kind="flow"):
+    """UDP send is best-effort; return means local socket send, not remote receipt."""
+    payload = json.dumps(event, separators=(",", ":"))
+    timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    message = f"<134>1 {timestamp} shirobird shirobird - {kind} - {payload}".encode()
+    if len(message) > 8192:
+        raise ValueError("syslog event too large")
+    address = socket.getaddrinfo(settings["host"], settings["port"],
+                                 type=socket.SOCK_DGRAM)[0]
+    with socket.socket(address[0], socket.SOCK_DGRAM) as conn:
+        conn.settimeout(2)
+        conn.sendto(message, address[4])
+
 def write_events(events, sensor):
     rows = [validate_event(event, sensor) for event in events]
     with WRITE_LOCK:
         with connection() as c:
-            cur = c.executemany("""INSERT INTO flows
+            c.executemany("""INSERT INTO flows
                 (ts,sensor,type,proto,src,dst,sport,dport,packets,bytes)
                 VALUES (?,?,?,?,?,?,?,?,?,?)""", rows)
         with SIEM_PATH.open("a", encoding="utf-8") as file:
             for row in rows:
-                obj = dict(zip(FIELDS[1:], row))
-                obj["integration"] = "shirobird"
-                file.write(json.dumps(obj, separators=(",", ":")) + "\n")
+                event = dict(zip(FIELDS[1:], row))
+                event["integration"] = "shirobird"
+                file.write(json.dumps(event, separators=(",", ":")) + "\n")
             file.flush()
-        if SYSLOG_TARGET:
+        config = syslog_settings()
+        if config["enabled"]:
             for row in rows:
                 try:
-                    payload = json.dumps(dict(zip(FIELDS[1:], row)), separators=(",", ":"))
-                    msg = f"<134>1 {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(row[0]))} shirobird shirobird - flow - {payload}"
-                    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                        s.settimeout(1)
-                        s.sendto(msg.encode(), (SYSLOG_TARGET, SYSLOG_PORT))
-                except OSError as ex:
-                    print(f"syslog export failed: {ex}", flush=True)
+                    event = dict(zip(FIELDS[1:], row))
+                    event["integration"] = "shirobird"
+                    send_syslog(config, event)
+                except (OSError, ValueError) as error:
+                    print(f"syslog export failed: {error}", flush=True)
     return len(rows)
 
 def siem_status():
-    """Report local SIEM export configuration, not remote ingestion success."""
+    """Local export status only; remote SIEM ingestion is not confirmed."""
     try:
         info = SIEM_PATH.stat()
     except FileNotFoundError:
         info = None
     writable = SIEM_PATH.parent.is_dir() and os.access(SIEM_PATH.parent, os.W_OK)
+    config = syslog_settings()
     return {
-        "jsonl": {
-            "ready": bool(writable),
-            "exists": info is not None,
-            "size_bytes": info.st_size if info else 0,
-            "last_write": int(info.st_mtime) if info else None,
-            "container_path": "/data/siem/events.jsonl"
-        },
-        "syslog": {
-            "configured": bool(SYSLOG_TARGET),
-            "protocol": "UDP",
-            "port": SYSLOG_PORT if SYSLOG_TARGET else None
-        },
+        "jsonl": {"ready": bool(writable), "exists": info is not None,
+                  "size_bytes": info.st_size if info else 0,
+                  "last_write": int(info.st_mtime) if info else None,
+                  "container_path": str(SIEM_PATH),
+                  "host_path": HOST_LOG_PATH},
+        "syslog": {"configured": config["enabled"], "host": config["host"],
+                   "port": config["port"], "protocol": config["protocol"]},
+        "wazuh": {"auto_detected": False, "installation_verified": False,
+                  "config_path": "/var/ossec/etc/ossec.conf",
+                  "integration_script": "scripts/configure-wazuh-agent.sh"},
         "remote_ingestion_verified": False,
         "retention_days": RETENTION_DAYS,
         "total_flow_events": stats()["total"]
@@ -290,6 +352,28 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b'{"ok":true}')
             return
+        if route in ("/api/siem/syslog", "/api/siem/syslog/test"):
+            if not self.authorized():
+                return self.reply(401, {"error": "unauthorized"})
+            if self.headers.get("Content-Type", "").split(";")[0].strip().lower() != "application/json":
+                return self.reply(415, {"error": "application/json required"})
+            if self.headers.get("X-ShiroBird-Action") != "siem":
+                return self.reply(403, {"error": "action header required"})
+            try:
+                if route == "/api/siem/syslog":
+                    settings = save_syslog_settings(self.body_json())
+                    return self.reply(200, {"syslog": settings, "saved": True})
+                config = syslog_settings()
+                if not config["enabled"]:
+                    return self.reply(400, {"error": "enable and save Syslog before testing"})
+                send_syslog(config, {"integration": "shirobird",
+                                    "type": "TEST", "ts": int(time.time())}, "test")
+                return self.reply(200, {"sent_locally": True,
+                                        "delivered_to_receiver": False})
+            except (ValueError, TypeError) as error:
+                return self.reply(400, {"error": str(error)})
+            except OSError:
+                return self.reply(502, {"error": "syslog socket send failed"})
         if route == "/api/ingest":
             if not self.ingest_authorized():
                 return self.reply(401, {"error": "unauthorized"})
