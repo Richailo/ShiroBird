@@ -41,6 +41,9 @@ mkdir -p data/siem
 chown -R 65532:65532 data
 chmod 700 data
 chmod 600 .env
+if ! grep -q '^SHIROBIRD_HOST_LOG_PATH=' .env; then
+  printf '\nSHIROBIRD_HOST_LOG_PATH=%s\n' "$PWD/data/siem/events.jsonl" >> .env
+fi
 docker compose config --quiet
 docker compose up -d --build
 if command -v logrotate >/dev/null; then
