@@ -1,19 +1,93 @@
-/* ShiroBird adapter styles are scoped and cannot change native NetBird components. */
-#shirobird-nav-link button{width:100%;display:block;text-align:left;cursor:pointer}
-#shirobird-nav-link button .shirobird-glyph{min-width:16px;text-align:center;
-  line-height:1;color:#6c75de;font-size:17px}
-#shirobird-nav-link button:hover,#shirobird-nav-link.shirobird-active button{
-  background:rgba(109,134,177,.18)}
-#shirobird-integrated-view{
-  position:fixed;inset:0 0 0 auto;z-index:2147480000;
-  background:#fff;color:#161b23;display:flex;flex-direction:column}
-html.dark #shirobird-integrated-view{background:#111215;color:#f4f4f6}
-#shirobird-integrated-view[hidden]{display:none!important}
-#shirobird-integrated-view iframe{flex:1 1 auto;width:100%;
-  height:100%;border:0;background:transparent}
-#shirobird-integrated-view iframe[hidden]{display:none!important}
-#shirobird-integrated-view .shirobird-auth-message{
-  flex:1;display:grid;place-items:center;text-align:center;padding:30px;
-  color:#5d6471;font:500 14px Inter,system-ui,sans-serif}
-html.dark #shirobird-integrated-view .shirobird-auth-message{color:#a2a3ac}
-#shirobird-integrated-view .shirobird-auth-message[hidden]{display:none!important}
+/* ShiroBird navigation matches the original NetBird SidebarItem style. */
+#shirobird-nav-link {
+  width: 100%;
+}
+#shirobird-nav-link li {
+  list-style: none;
+}
+#shirobird-nav-link button {
+  width: 100%;
+  display: block;
+  text-align: left;
+  cursor: pointer;
+}
+#shirobird-nav-link .shirobird-glyph {
+  min-width: 16px;
+  text-align: center;
+  font-size: 17px;
+  line-height: 1;
+  color: #7387e3;
+}
+#shirobird-nav-link .shirobird-chevron {
+  margin-left: auto;
+  font-size: 19px;
+  line-height: 1;
+  opacity: .72;
+  transition: transform .15s ease;
+}
+#shirobird-nav-link.shirobird-expanded .shirobird-chevron {
+  transform: rotate(180deg);
+}
+#shirobird-nav-link .shirobird-submenu {
+  padding: 0;
+  margin: 0;
+}
+#shirobird-nav-link .shirobird-submenu[hidden] {
+  display: none!important;
+}
+#shirobird-nav-link .shirobird-child-button {
+  padding-left: 28px!important;
+  margin-top: 3px;
+  margin-bottom: 2px;
+}
+#shirobird-nav-link .shirobird-selected,
+#shirobird-nav-link .shirobird-selected:hover {
+  background: #e5e7eb;
+  color: #111827;
+}
+html.dark #shirobird-nav-link .shirobird-selected,
+html.dark #shirobird-nav-link .shirobird-selected:hover {
+  background: #292a30;
+  color: #fff;
+}
+#shirobird-integrated-view {
+  position: fixed;
+  inset: 0 0 0 auto;
+  z-index: 2147480000;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  color: #161b23;
+}
+html.dark #shirobird-integrated-view {
+  background: #111215;
+  color: #f4f4f6;
+}
+#shirobird-integrated-view[hidden] {
+  display: none!important;
+}
+#shirobird-integrated-view iframe {
+  width: 100%;
+  height: 100%;
+  flex: 1 1 auto;
+  border: 0;
+  background: transparent;
+}
+#shirobird-integrated-view iframe[hidden] {
+  display: none!important;
+}
+#shirobird-integrated-view .shirobird-auth-message {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 30px;
+  text-align: center;
+  color: #5d6471;
+  font: 500 14px Inter, system-ui, sans-serif;
+}
+html.dark #shirobird-integrated-view .shirobird-auth-message {
+  color: #a2a3ac;
+}
+#shirobird-integrated-view .shirobird-auth-message[hidden] {
+  display: none!important;
+}
