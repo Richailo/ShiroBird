@@ -122,6 +122,31 @@ def write_events(events, sensor):
                     print(f"syslog export failed: {ex}", flush=True)
     return len(rows)
 
+def siem_status():
+    """Report local SIEM export configuration, not remote ingestion success."""
+    try:
+        info = SIEM_PATH.stat()
+    except FileNotFoundError:
+        info = None
+    writable = SIEM_PATH.parent.is_dir() and os.access(SIEM_PATH.parent, os.W_OK)
+    return {
+        "jsonl": {
+            "ready": bool(writable),
+            "exists": info is not None,
+            "size_bytes": info.st_size if info else 0,
+            "last_write": int(info.st_mtime) if info else None,
+            "container_path": "/data/siem/events.jsonl"
+        },
+        "syslog": {
+            "configured": bool(SYSLOG_TARGET),
+            "protocol": "UDP",
+            "port": SYSLOG_PORT if SYSLOG_TARGET else None
+        },
+        "remote_ingestion_verified": False,
+        "retention_days": RETENTION_DAYS,
+        "total_flow_events": stats()["total"]
+    }
+
 def query_flows(limit=100, since=0):
     with connection() as c:
         rows = c.execute("""SELECT * FROM flows WHERE id > ?
@@ -302,6 +327,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(400, {"error": "bad query"})
         if route == "/api/stats":
             return self.reply(200, stats())
+        if route == "/api/siem/status":
+            return self.reply(200, siem_status())
         if route == "/api/flows":
             return self.reply(200, {"flows": query_flows(limit, since)})
         if route in ("/api/export.csv", "/api/export.ndjson"):
