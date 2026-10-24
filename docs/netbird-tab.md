@@ -1,6 +1,6 @@
 # Add ShiroBird to the native NetBird Dashboard
 
-No NetBird container or client patches. ShiroBird's sidecar Nginx bridge injects a small navigation extension into the original NetBird Dashboard HTML. It observes the actual NetBird sidebar buttons and displays a dark/light-theme-matched monitoring view alongside native pages.
+No NetBird container or client patches. ShiroBird's sidecar Nginx bridge injects a small navigation extension into the original NetBird Dashboard HTML. It observes the actual NetBird sidebar buttons and adds an expandable **ShiroBird** parent with two native-style submenu buttons: **Traffic Flow** (`#shirobird/traffic-flow`) and **SIEM Integration** (`#shirobird/siem-integration`). Opening a submenu item displays its dedicated light/dark-theme-matched page while preserving the rest of NetBird's navigation.
 
 ## Quick installation
 
