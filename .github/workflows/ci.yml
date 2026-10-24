@@ -61,3 +61,12 @@ jobs:
       - name: Validate Windows WFP parser and PowerShell collector syntax
         shell: powershell
         run: .\\windows\\test.ps1
+
+  native-flow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build independent native receiver
+        run: docker build -t shirobird-native-flow:test extensions/native-flow
+      - name: Protocol, persistence, authentication and API tests
+        run: docker run --rm --network none shirobird-native-flow:test python -m unittest -v

@@ -1,0 +1,31 @@
+# Optional overlay only; does not modify or replace any NetBird service.
+# docker compose -f compose.yaml -f compose.override.yaml -f compose.native-flow.yaml up -d
+services:
+  shirobird:
+    environment:
+      SHIROBIRD_NATIVE_API_URL: http://native-flow:8085
+      SHIROBIRD_NATIVE_API_TOKEN_FILE: /run/secrets/native_api_token
+    secrets: [native_api_token]
+  native-flow:
+    build: ./extensions/native-flow
+    image: shirobird-native-flow:local
+    restart: unless-stopped
+    environment:
+      SHIROBIRD_FLOW_SECRET_FILE: /run/secrets/native_flow_secret
+      SHIROBIRD_NATIVE_API_TOKEN_FILE: /run/secrets/native_api_token
+      SHIROBIRD_NATIVE_DATA: /data
+    secrets: [native_flow_secret, native_api_token]
+    ports: ["127.0.0.1:8084:8084"]
+    volumes: [native_flow_data:/data]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    pids_limit: 64
+secrets:
+  native_flow_secret:
+    file: ./extensions/native-flow/flow-secret
+  native_api_token:
+    file: ./extensions/native-flow/api-token
+volumes:
+  native_flow_data:

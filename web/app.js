@@ -181,6 +181,41 @@ function renderSensors(data) {
   }
   $("flow-sensor-list").replaceChildren(fragment);
 }
+let nativeCursor = 0;
+async function refreshNative(next = false) {
+  if (!next) nativeCursor = 0;
+  try {
+    const data = await req("api/traffic/native?limit=100&since=" + nativeCursor);
+    $("native-note").textContent = data.note;
+    $("native-table").hidden = !data.available;
+    $("native-next").hidden = !data.available || data.flows.length < 100;
+    const fragment = document.createDocumentFragment();
+    for (const row of data.flows || []) {
+      const tr = document.createElement("tr");
+      const protocol = ({6:"TCP",17:"UDP",1:"ICMP",58:"ICMPv6"})[row.protocol] || row.protocol;
+      const values = [date(row.ts), row.reporter_id, endpoint(row.src) + ":" + row.sport,
+        endpoint(row.dst) + ":" + row.dport,
+        protocol + " / " + ({1:"ingress",2:"egress"}[row.direction] || "unknown"),
+        fmt(row.num_of_starts), fmt(row.num_of_ends), fmt(row.num_of_drops),
+        humanBytes(Number(row.rx_bytes) + Number(row.tx_bytes)), row.rule_id || "Unavailable"];
+      for (const value of values) {
+        const cell = document.createElement("td");
+        cell.textContent = String(value);
+        tr.append(cell);
+      }
+      fragment.append(tr);
+    }
+    if (!(data.flows || []).length)
+      fragment.append(makeEmptyRow(10, "No native reports received. A running receiver alone does not enable P2P reporting."));
+    $("native-rows").replaceChildren(fragment);
+    nativeCursor = data.next_cursor || 0;
+  } catch (_) {
+    $("native-note").textContent = "Native reports unavailable";
+    $("native-table").hidden = true;
+    $("native-next").hidden = true;
+  }
+}
+$("native-next").addEventListener("click", () => refreshNative(true));
 async function refreshAnalytics() {
   const windowMinutes = Number($("flow-window").value);
   const [data, sensorData] = await Promise.all([
@@ -306,7 +341,7 @@ async function start() {
   try {
     if (page === "siem-integration") await refreshSiem();
     else {
-      await Promise.all([refreshFlows(), refreshAnalytics()]);
+      await Promise.all([refreshFlows(), refreshAnalytics(), refreshNative()]);
       connectFlows();
     }
     $("auth").classList.add("hidden");
@@ -337,7 +372,7 @@ $("logout").addEventListener("click", async () => {
   showLogin();
 });
 $("flow-window").addEventListener("change", () =>
-  refreshAnalytics().catch(() => status("Analytics unavailable")));
+  Promise.all([refreshAnalytics(), refreshNative()]).catch(() => status("Analytics unavailable")));
 $("flow-protocol").addEventListener("change", renderAnalytics);
 $("flow-search").addEventListener("input", renderAnalytics);
 $("flow-analytics-refresh").addEventListener("click", () =>
