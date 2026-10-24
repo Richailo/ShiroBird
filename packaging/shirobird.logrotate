@@ -1,0 +1,10 @@
+"@ROOT@/data/siem/events.jsonl" {
+  daily
+  maxsize 25M
+  rotate 14
+  missingok
+  notifempty
+  compress
+  delaycompress
+  copytruncate
+}
