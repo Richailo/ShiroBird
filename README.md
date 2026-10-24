@@ -66,3 +66,11 @@ MIT License — © 2026 ShiroBird contributors.
 The Traffic Flow page now includes time windows, aggregated conntrack sessions, trending, top destinations, per-peer IP/name enrichment from NetBird's read-only Peers API, and authenticated sensor heartbeats. The collector reports if Linux kernel byte accounting is disabled, so an empty or zero-byte dashboard is not mistaken for validated network coverage.
 
 **Important:** Traffic Flow does not yet provide NetBird policy allow/deny verdicts, blocked packet counts or verified routing policy IDs. Observing a conntrack NEW event does not prove a NetBird policy allowed it. Install sensors on actual Linux peers/routing gateways to capture their traffic. See [traffic collection, kernel accounting and coverage limitations](docs/traffic-flow.md).
+
+### Windows Filtering Platform (WFP) traffic sensor
+
+Windows peers can now report locally audited **5156 permitted connections, 5157 blocked connections and 5152 dropped packets**, with process path, direction, Security record and WFP runtime filter IDs. The collector is a separate SYSTEM scheduled task and does not modify NetBird. Linux conntrack continues to provide session start/end and byte counts when available.
+
+Install the optional sensor on each authorized Windows peer from the `windows/` directory after enabling the appropriate audit policy. **No WFP audit change is made by default.** For deployment instructions, high-volume warnings, data source limits and rollback, read [Windows sensor setup](docs/windows-wfp.md).
+
+**Important distinction:** Windows WFP verdicts describe the Windows filtering system; they do not automatically prove which NetBird access policy allowed or blocked a connection. ShiroBird keeps `policy_decisions_available: false` until that linkage can be verified.
