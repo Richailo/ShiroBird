@@ -2,6 +2,11 @@ services:
   shirobird:
     environment:
       SHIROBIRD_EMBEDDED: "true"
+      SHIROBIRD_AUTH_MODE: "netbird"
+      SHIROBIRD_NETBIRD_IDENTITY_URL: "http://netbird-server:80/api/users/current"
+    networks:
+      - default
+      - netbird-dashboard-network
   shirobird-bridge:
     image: nginx:stable-alpine
     container_name: shirobird-bridge
