@@ -100,6 +100,16 @@ function connectFlows() {
 
 async function refreshSiem() {
   const data = await req("api/siem/status");
+  const syslog = data.syslog;
+  $("syslog-enabled").checked = Boolean(syslog.configured);
+  $("syslog-host").value = syslog.host || "";
+  $("syslog-port").value = String(syslog.port || 514);
+  const hostPath = data.jsonl.host_path || "/opt/shirobird/data/siem/events.jsonl";
+  // textContent deliberately avoids interpreting HTML in paths.
+  $("wazuh-example").textContent = "<localfile>\\n" +
+    "  <log_format>json</log_format>\\n" +
+    "  <location>" + hostPath + "</location>\\n" +
+    "</localfile>";
   $("siem-jsonl").textContent = data.jsonl.ready ? "Ready" : "Unavailable";
   $("siem-events").textContent = fmt(data.total_flow_events);
   $("siem-syslog").textContent = data.syslog.configured ? "Configured" : "Disabled";
@@ -154,6 +164,48 @@ $("refresh").addEventListener("click", () => refreshFlows().catch(() => status("
 $("siem-refresh").addEventListener("click", () => refreshSiem().catch(error => {
   $("siem-error").textContent = error.message;
 }));
+$("syslog-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const message = $("syslog-message");
+  message.textContent = "Saving…";
+  const options = {
+    enabled: $("syslog-enabled").checked,
+    host: $("syslog-host").value.trim(),
+    port: Number($("syslog-port").value),
+    protocol: "udp"
+  };
+  try {
+    const saved = await req("api/siem/syslog", {
+      method: "POST",
+      headers: {"Content-Type": "application/json", "X-ShiroBird-Action": "siem"},
+      body: JSON.stringify(options)
+    });
+    message.textContent = saved.saved ? "Settings saved; future flow events will use this configuration." : "Unable to save";
+    await refreshSiem();
+  } catch (error) { message.textContent = "Save failed: " + error.message; }
+});
+$("syslog-test").addEventListener("click", async () => {
+  const message = $("syslog-message");
+  message.textContent = "Sending test datagram…";
+  try {
+    const result = await req("api/siem/syslog/test", {
+      method: "POST",
+      headers: {"Content-Type": "application/json", "X-ShiroBird-Action": "siem"},
+      body: "{}"
+    });
+    message.textContent = result.sent_locally ?
+      "Test sent from ShiroBird. Verify receipt on the Syslog server or SIEM." :
+      "Test did not send.";
+  } catch (error) { message.textContent = "Test failed: " + error.message; }
+});
+$("copy-wazuh-script").addEventListener("click", async event => {
+  try {
+    await navigator.clipboard.writeText($("wazuh-script").textContent);
+    event.currentTarget.textContent = "Copied";
+  } catch (error) {
+    $("siem-error").textContent = "Copy unavailable: select the command manually.";
+  }
+});
 $("copy-wazuh").addEventListener("click", async event => {
   try {
     await navigator.clipboard.writeText($("wazuh-example").textContent);
