@@ -22,5 +22,8 @@ chown -R 65532:65532 data
 chmod 700 data
 chmod 600 .env
 docker compose up -d --build
+if command -v logrotate >/dev/null 2>&1; then
+  sed "s|@ROOT@|$PWD|g" packaging/shirobird.logrotate > /etc/logrotate.d/shirobird
+fi
 echo "ShiroBird launched on 127.0.0.1:8666. Access through an HTTPS reverse proxy."
 echo "Read your admin token locally: grep ^SHIROBIRD_ADMIN_TOKEN= .env (do not paste it into chats)"
