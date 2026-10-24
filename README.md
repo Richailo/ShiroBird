@@ -17,7 +17,7 @@ The installer automatically:
 - Detects NetBird Dashboard and its Docker network.
 - Generates internal signing and collector keys securely without user input.
 - Runs the ShiroBird monitoring server and a separate bridge on port **8082**.
-- Adds a **ShiroBird** menu item to the original NetBird sidebar with matching dark/light theme.
+- Adds an expandable **ShiroBird** group to the original NetBird sidebar, with **Traffic Flow** and **SIEM Integration** subpages and matching dark/light theme.
 - Reuses the *existing NetBird OIDC login* (Owner and Admin roles only). **No ShiroBird login screen, manual token creation, or personal access tokens required.**
 - Leaves NetBird containers, client software, OIDC configuration and server files unchanged.
 
