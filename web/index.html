@@ -28,6 +28,60 @@
           <a href="api/export.ndjson" class="button secondary">Export JSONL</a>
         </div>
       </div>
+      <div class="flow-tools">
+        <label>Time range
+          <select id="flow-window">
+            <option value="15">Last 15 min</option>
+            <option value="60" selected>Last hour</option>
+            <option value="360">Last 6 hours</option>
+            <option value="1440">Last 24 hours</option>
+            <option value="10080">Last 7 days</option>
+          </select>
+        </label>
+        <label>Protocol
+          <select id="flow-protocol">
+            <option value="">All protocols</option>
+            <option value="tcp">TCP</option>
+            <option value="udp">UDP</option>
+            <option value="icmp">ICMP</option>
+            <option value="icmpv6">ICMPv6</option>
+          </select>
+        </label>
+        <label>Source or destination
+          <input id="flow-search" type="search" placeholder="Peer, address, sensor, port">
+        </label>
+        <button class="secondary" id="flow-analytics-refresh" type="button">Refresh analytics</button>
+      </div>
+      <p class="flow-caveat" id="flow-telemetry-note">Observed Linux conntrack sessions, not verified NetBird policy decisions. Dropped packets require separate on-peer telemetry.</p>
+      <section class="stats" aria-label="Flow analytics">
+        <article><span>Observed starts</span><strong id="flow-starts">—</strong></article>
+        <article><span>Observed ends</span><strong id="flow-ends">—</strong></article>
+        <article><span>Completed-session bytes</span><strong id="flow-bytes">—</strong></article>
+        <article><span>Reporting sensors</span><strong id="flow-sensors">—</strong></article>
+      </section>
+      <div class="flow-analytics-grid">
+        <section class="panel">
+          <div class="panelhead"><div><h2>Activity over time</h2><p>Connection starts and ends in the selected period</p></div></div>
+          <div class="flow-chart" id="flow-trend" aria-label="Activity histogram"></div>
+        </section>
+        <section class="panel">
+          <div class="panelhead"><div><h2>Top destinations</h2><p>Ranked by observed session starts</p></div></div>
+          <div class="flow-top" id="flow-top"></div>
+        </section>
+      </div>
+      <section class="panel flow-group-panel">
+        <div class="panelhead"><div><h2>Aggregated traffic flows</h2>
+          <p>Grouped by sensor, protocol, source, destination and destination port</p></div>
+          <span class="flow-caveat">Policy / blocked decisions: not observable via conntrack</span>
+        </div>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Last seen</th><th>Source peer / IP</th><th>Destination peer / IP</th>
+              <th>Port</th><th>Protocol</th><th>Sensor</th><th>Starts</th><th>Ends</th><th>Bytes</th></tr></thead>
+            <tbody id="flow-groups"><tr><td colspan="9">No recorded flows</td></tr></tbody>
+          </table>
+        </div>
+      </section>
       <section class="stats" aria-label="Traffic summary">
         <article><span>Total events</span><strong id="total">—</strong></article>
         <article><span>Last 24 hours</span><strong id="day">—</strong></article>
@@ -36,7 +90,7 @@
       </section>
       <section class="panel">
         <div class="panelhead">
-          <div><h2>Network flow events</h2><p>Metadata only. No packet payloads.</p></div>
+          <div><h2>Raw connection events</h2><p>Unaggregated NEW/DESTROY observations (not policy allows or denies)</p></div>
           <div class="actions"><input id="filter" type="search" aria-label="Filter flows"
             placeholder="Filter IP, sensor, protocol">
             <button id="refresh" class="secondary" type="button">Refresh</button>
