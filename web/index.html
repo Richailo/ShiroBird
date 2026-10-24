@@ -68,6 +68,9 @@
         <article><span>Observed ends</span><strong id="flow-ends">—</strong></article>
         <article><span>Completed-session bytes</span><strong id="flow-bytes">—</strong></article>
         <article><span>Reporting sensors</span><strong id="flow-sensors">—</strong></article>
+        <article><span>Windows WFP allowed</span><strong id="flow-allowed">—</strong></article>
+        <article><span>Windows WFP blocked connections</span><strong id="flow-blocked">—</strong></article>
+        <article><span>Windows WFP dropped packets</span><strong id="flow-dropped">—</strong></article>
       </section>
       <div class="flow-analytics-grid">
         <section class="panel">
@@ -81,14 +84,14 @@
       </div>
       <section class="panel flow-group-panel">
         <div class="panelhead"><div><h2>Aggregated traffic flows</h2>
-          <p>Grouped by sensor, protocol, source, destination and destination port</p></div>
-          <span class="flow-caveat">Policy / blocked decisions: not observable via conntrack</span>
+          <p>Grouped by sensor, telemetry source, endpoints, application and WFP filter</p></div>
+          <span class="flow-caveat">Windows WFP verdicts are not automatically NetBird policy verdicts</span>
         </div>
         <div class="tablewrap">
           <table>
             <thead><tr><th>Last seen</th><th>Source peer / IP</th><th>Destination peer / IP</th>
-              <th>Port</th><th>Protocol</th><th>Sensor</th><th>Starts</th><th>Ends</th><th>Bytes</th></tr></thead>
-            <tbody id="flow-groups"><tr><td colspan="9">No recorded flows</td></tr></tbody>
+              <th>Port</th><th>Protocol</th><th>Sensor</th><th>Origin</th><th>Direction</th><th>App / WFP filter</th><th>Starts</th><th>Allowed</th><th>Blocked</th><th>Dropped</th><th>Ends</th><th>Bytes</th></tr></thead>
+            <tbody id="flow-groups"><tr><td colspan="15">No recorded flows</td></tr></tbody>
           </table>
         </div>
       </section>
@@ -100,7 +103,7 @@
       </section>
       <section class="panel">
         <div class="panelhead">
-          <div><h2>Raw connection events</h2><p>Unaggregated NEW/DESTROY observations (not policy allows or denies)</p></div>
+          <div><h2>Raw network events</h2><p>Linux conntrack observations and explicitly sourced Windows WFP firewall decisions</p></div>
           <div class="actions"><input id="filter" type="search" aria-label="Filter flows"
             placeholder="Filter IP, sensor, protocol">
             <button id="refresh" class="secondary" type="button">Refresh</button>
@@ -109,8 +112,8 @@
         <div class="tablewrap">
           <table>
             <thead><tr><th>Time</th><th>Sensor</th><th>Event</th><th>Protocol</th>
-              <th>Source</th><th>Destination</th><th>Bytes</th></tr></thead>
-            <tbody id="flows"><tr><td colspan="7">No flow events yet</td></tr></tbody>
+              <th>Source</th><th>Destination</th><th>Origin</th><th>Application / filter</th><th>Bytes</th></tr></thead>
+            <tbody id="flows"><tr><td colspan="9">No flow events yet</td></tr></tbody>
           </table>
         </div>
       </section>
