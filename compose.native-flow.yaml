@@ -8,14 +8,18 @@ services:
     secrets: [native_api_token]
   native-flow:
     build: ./extensions/native-flow
-    image: shirobird-native-flow:local
+    image: ${SHIROBIRD_NATIVE_IMAGE:-shirobird-native-flow:local}
+    container_name: shirobird-native-flow
+    pull_policy: never
     restart: unless-stopped
     environment:
       SHIROBIRD_FLOW_SECRET_FILE: /run/secrets/native_flow_secret
       SHIROBIRD_NATIVE_API_TOKEN_FILE: /run/secrets/native_api_token
       SHIROBIRD_NATIVE_DATA: /data
     secrets: [native_flow_secret, native_api_token]
-    ports: ["127.0.0.1:8084:8084"]
+    ports:
+      - "${SHIROBIRD_NATIVE_BIND:-127.0.0.1}:8084:8084"
+      - "127.0.0.1:8085:8085"
     volumes: [native_flow_data:/data]
     read_only: true
     cap_drop: [ALL]
@@ -24,8 +28,8 @@ services:
     pids_limit: 64
 secrets:
   native_flow_secret:
-    file: ./extensions/native-flow/flow-secret
+    file: ${SHIROBIRD_NATIVE_FLOW_SECRET_FILE:-./extensions/native-flow/flow-secret}
   native_api_token:
-    file: ./extensions/native-flow/api-token
+    file: ${SHIROBIRD_NATIVE_API_SECRET_FILE:-./extensions/native-flow/api-token}
 volumes:
   native_flow_data:

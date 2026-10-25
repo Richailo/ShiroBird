@@ -18,7 +18,13 @@ CHECK = """
     }
 """
 
-def prepare(root):
+def replace_once(text, old, new):
+    if text.count(old) != 1:
+        raise ValueError("upstream integration anchor changed or is ambiguous")
+    return text.replace(old, new, 1)
+
+
+def prepare(root, compatible=False):
     root = Path(root).resolve(strict=True)
     if not (root / "go.mod").is_file() or "module github.com/netbirdio/netbird" not in (root / "go.mod").read_text():
         raise ValueError("not a NetBird source tree")
@@ -29,20 +35,26 @@ def prepare(root):
     for name, expected in HASHES.items():
         path = root / "management/internals/shared/grpc" / name
         data = path.read_bytes()
-        if hashlib.sha256(data).hexdigest() != expected:
+        if not compatible and hashlib.sha256(data).hexdigest() != expected:
             raise ValueError("upstream source differs from verified v0.81.3: " + name)
         text = data.decode()
-        text = text.replace("import (\n", "import (\n" + IMPORT, 1)
+        if "shirobirdflow" in text:
+            raise ValueError("source already contains ShiroBird hooks")
+        text = replace_once(text, "import (\n", "import (\n" + IMPORT)
         if name == "conversion.go":
-            text = text.replace("\tresponse.NetbirdConfig = extendedConfig",
-                                "\tresponse.NetbirdConfig = shirobirdflow.Extend(peer.ID, peerGroups, extendedConfig)", 1)
+            text = replace_once(text, "\tresponse.NetbirdConfig = extendedConfig",
+                                "\tresponse.NetbirdConfig = shirobirdflow.Extend(peer.ID, peerGroups, extendedConfig)")
         elif name == "components_envelope_response.go":
             line = "\tresp.NetbirdConfig = integrationsConfig.ExtendNetBirdConfig(peer.ID, peerGroups, nbConfig, extraSettings)"
-            text = text.replace(line, line + "\n\tresp.NetbirdConfig = shirobirdflow.Extend(peer.ID, peerGroups, resp.NetbirdConfig)", 1)
+            text = replace_once(text, line, line + "\n\tresp.NetbirdConfig = shirobirdflow.Extend(peer.ID, peerGroups, resp.NetbirdConfig)")
         else:
-            text = text.replace("\tupdate.NetbirdConfig = extendedConfig",
-                                "\tupdate.NetbirdConfig = shirobirdflow.Extend(peerID, peerGroups, extendedConfig)", 1)
+            text = replace_once(text, "\tupdate.NetbirdConfig = extendedConfig",
+                                "\tupdate.NetbirdConfig = shirobirdflow.Extend(peerID, peerGroups, extendedConfig)")
+            if text.count(CTOR) != 1:
+                raise ValueError("upstream credential manager constructor changed")
             pos = text.index("\n", text.index(CTOR)) + 1
+            if not text[:pos].rstrip().endswith("{"):
+                raise ValueError("upstream credential manager signature changed")
             text = text[:pos] + CHECK + text[pos:]
         changed[path] = text
     # Validate every source and read every new file before the first write.
@@ -58,6 +70,8 @@ def prepare(root):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source-dir", required=True)
+    parser.add_argument("--compatible", action="store_true",
+                        help="allow changed source only when every hook still matches; build and tests remain mandatory")
     args = parser.parse_args()
-    for path in prepare(args.source_dir):
+    for path in prepare(args.source_dir, compatible=args.compatible):
         print(path)

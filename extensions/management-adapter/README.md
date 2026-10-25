@@ -1,14 +1,15 @@
-# ShiroBird management adapter — source preparation only
+# ShiroBird management adapter
 
 This optional adapter prepares NetBird **v0.81.3** to distribute the independent
 ShiroBird flow receiver configuration to selected peers. It is part of the
 ShiroBird traffic-events extension, not a replacement for every Enterprise feature.
 
-**Not deployed.** The official ZS1 management image, client daemon, routes and
-production ShiroBird are unchanged by this preparation. The adapter is a source
-integration, not a dynamically loadable Community plugin. Using it in production
-would require a separately approved custom management build or another supported
-management integration. Running the receiver alone cannot activate P2P reporting.
+On 2026-10-25 the user authorized and ZS1 received a custom management image based
+on the same official NetBird 0.81.3 source/runtime, with this adapter. The native
+receiver and NPM-ZS1 TLS/gRPC route are enabled. Existing clients and routing
+policies were preserved. See [UPDATES.md](UPDATES.md) for tested upstream upgrades
+and rollback. This is a source integration, not a dynamically loadable Community
+plugin; running the receiver alone cannot activate reporting.
 
 ## Implemented control path
 
@@ -59,9 +60,11 @@ Verify SHA-256 before extraction:
 
     a06c0c3ffc84a78a5ee019641988cfe0ea38ea980609535f66dd4ae82929daed
 
-prepare.py verifies the exact hashes of all three upstream files before writing
-anything. Unsupported or already-patched source is rejected. It copies only the
-adapter package and adds the three integration hooks.
+By default prepare.py verifies the exact hashes of all three pinned upstream
+files before writing anything. The update pipeline's compatible mode permits
+upstream changes only when all unique integration anchors still match, followed
+by compilation and protocol tests. Already-patched source is rejected. It copies
+only the adapter package and adds the three integration hooks.
 
     python3 prepare.py --source-dir /path/to/disposable/netbird-0.81.3
 
@@ -99,20 +102,23 @@ test_prepare.py additionally checks source-version guards and repeat-apply safet
 Set SHIROBIRD_NETBIRD_ARCHIVE to the verified archive when running that suite.
 The GitHub workflow automates these checks.
 
-## Coverage and remaining activation boundary
+## Coverage and validation boundaries
 
 The wire test generates synthetic metadata using the official client transport.
 It does **not** start a NetBird daemon, capture real peer traffic, establish a P2P
-tunnel or test public TLS/reverse-proxy traversal. Those deployment checks remain
-outstanding under the user's preparation-only decision.
+tunnel or test public TLS/reverse-proxy traversal. The deployment pipeline separately
+checks public TLS/gRPC authentication and startup on a disconnected database copy.
+`lab_p2p.py` additionally runs two official daemons in an isolated internal Docker
+network, waits for direct P2P, generates HTTP traffic and verifies native records.
+Its temporary peers and policy changes exist only in the copied laboratory database.
 
 Native metadata can describe a direct P2P exchange when a reporting peer collects
 it. It cannot reveal traffic of peers that do not report, decrypt arbitrary relay
 payloads, or remove platform-specific collection limitations. Reports from both
 ends can overlap; keep reporter perspectives and central conntrack data separate.
 
-The receiver still needs operational retention, revocation, capacity and TLS
-decisions before any future production activation; see ../native-flow/README.md.
+The receiver's retention, revocation and capacity limits remain documented in
+../native-flow/README.md; activation does not remove those limitations.
 WebSocket flow fallback and multi-account isolation are not implemented.
 
 This source integration targets AGPL-3.0-only NetBird management code; its new Go

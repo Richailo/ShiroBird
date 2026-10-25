@@ -48,5 +48,22 @@ class PreparationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             prepare.prepare(self.root)
 
+    def test_compatible_version_accepts_only_intact_hooks(self):
+        path = self.root / 'management/internals/shared/grpc/conversion.go'
+        path.write_text(path.read_text() + '\n// Simulated harmless upstream change.\n')
+        with self.assertRaises(ValueError):
+            prepare.prepare(self.root)
+        self.assertEqual(len(prepare.prepare(self.root, compatible=True)), 3)
+
+    def test_compatible_version_rejects_missing_hook_without_writes(self):
+        base = self.root / 'management/internals/shared/grpc'
+        path = base / 'token_mgr.go'
+        path.write_text(path.read_text().replace('update.NetbirdConfig = extendedConfig',
+                                                'update.NetbirdConfig = nil'))
+        before = {name: (base / name).read_bytes() for name in prepare.HASHES}
+        with self.assertRaises(ValueError):
+            prepare.prepare(self.root, compatible=True)
+        self.assertEqual(before, {name: (base / name).read_bytes() for name in prepare.HASHES})
+
 if __name__ == "__main__":
     unittest.main()

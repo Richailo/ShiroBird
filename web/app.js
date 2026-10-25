@@ -206,7 +206,7 @@ async function refreshNative(next = false) {
       fragment.append(tr);
     }
     if (!(data.flows || []).length)
-      fragment.append(makeEmptyRow(10, "No native reports received. A running receiver alone does not enable P2P reporting."));
+      fragment.append(makeEmptyRow(10, "No native reports received yet. Reports appear when connected peers generate traffic with native reporting enabled."));
     $("native-rows").replaceChildren(fragment);
     nativeCursor = data.next_cursor || 0;
   } catch (_) {

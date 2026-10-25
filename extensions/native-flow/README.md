@@ -1,12 +1,14 @@
-# ShiroBird native-flow extension (prepared, not activated)
+# ShiroBird native-flow extension
 
 Independent receiver for NetBird's publicly documented gRPC FlowService wire
 protocol. This is a traffic-telemetry component, not an implementation of the
 entire NetBird Enterprise product.
 
-**The official ZS1 NetBird server and the deployed ShiroBird are unchanged.**
-The user selected preparation only. Do not run this Compose file as an upgrade
-of the existing production Compose project.
+Enabled on ZS1 on 2026-10-25 after the user authorized a custom management image.
+The server uses the official NetBird 0.81.3 runtime/source plus the ShiroBird adapter.
+NPM-ZS1 routes the public TLS endpoint to the receiver. Existing client software
+and production routing policies remain unchanged. See
+[management updates](../management-adapter/UPDATES.md) for the update/rollback path.
 
 ## What is ready
 
@@ -42,7 +44,7 @@ Sources:
 - https://github.com/netbirdio/netbird/blob/v0.81.3/combined/cmd/config.go
 
 Activation therefore needs either an authorized compatible management extension,
-or a supported licensed deployment. Neither was installed or activated on ZS1.
+or a supported licensed deployment. ZS1 now uses the authorized source adapter.
 This package does not claim compatibility with proprietary Enterprise credentials.
 
 ## Isolated tests
@@ -55,9 +57,10 @@ From this directory:
 Tests use a real local gRPC channel inside the isolated container, the vendored
 upstream protocol and generated Python client. The management-adapter suite additionally exercises the unmodified official Go
 flow client with a Go-issued token against this Python receiver. Neither suite
-is an end-to-end test with a live NetBird daemon or a remote P2P connection.
+is by itself an end-to-end daemon test. The separate lab_p2p.py harness starts two
+official daemons and checks direct P2P traffic in an isolated Docker network.
 
-## Receiver runtime (opt-in, currently not deployed)
+## Receiver runtime
 
 Create two independent random secrets, at least 32 characters each, in
 flow-secret and api-token. Do not commit them. The flow secret belongs only to
@@ -87,7 +90,7 @@ deduplicate on (reporter_id,event_id). No retention deletion is performed by thi
 prototype; provision storage and define retention before production use.
 It is a single-account receiver. Multi-account isolation is not implemented.
 
-## Management adapter (prepared, not installed)
+## Management adapter
 
 The source adapter in [../management-adapter](../management-adapter/README.md)
 implements the selection, signing and refresh contract below for verified
@@ -131,21 +134,22 @@ Each side can report the same P2P interaction, so totals across reporters can
 double count network volume. Keep reporter perspectives separate.
 
 The existing central conntrack collector is a separate source and can overlap
-native observations. Do not add their byte totals together. This prepared module
+native observations. Do not add their byte totals together. This module
 has its own API/data volume. The optional compose.native-flow.yaml overlay connects
 its read-only API to ShiroBird's authenticated /api/traffic/native endpoint and a
 separate Native peer reports panel. API credentials stay server-side; native totals
-are never added to conntrack totals. This integration is prepared on the branch,
-not deployed in production.
+are never added to conntrack totals. The integration is enabled on ZS1.
 Kernel-mode reporting still has NetBird's native limitations for policy IDs and
 blocked events. Seeing a start does not prove successful connection completion.
 
 The package includes upstream flow.proto under BSD-3-Clause; see NETBIRD-LICENSE.
 No proprietary server code or license checks are copied or bypassed.
 
-## Validation on ZS1 (isolated preparation)
+## Validation
 
 12 receiver protocol/storage/auth/API tests and 46 ShiroBird tests passed.
 JavaScript syntax and Python compilation passed. The receiver image was built
 and exercised in a temporary --network none container with no production mounts
-or published ports. Live remote-peer reporting remains untested and disabled.
+or published ports. ZS1's stock daemon received FlowConfig and started native
+collection after deployment. Other registered production peers must be connected
+and generate traffic before their reports appear; laboratory traffic is kept separate.
