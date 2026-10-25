@@ -53,8 +53,9 @@ From this directory:
     docker run --rm --network none shirobird-native-flow:test python -m unittest -v
 
 Tests use a real local gRPC channel inside the isolated container, the vendored
-upstream protocol and generated Python client. They are not an end-to-end test
-with a live NetBird daemon or a remote P2P connection.
+upstream protocol and generated Python client. The management-adapter suite additionally exercises the unmodified official Go
+flow client with a Go-issued token against this Python receiver. Neither suite
+is an end-to-end test with a live NetBird daemon or a remote P2P connection.
 
 ## Receiver runtime (opt-in, currently not deployed)
 
@@ -86,10 +87,18 @@ deduplicate on (reporter_id,event_id). No retention deletion is performed by thi
 prototype; provision storage and define retention before production use.
 It is a single-account receiver. Multi-account isolation is not implemented.
 
-## Management adapter contract (not installed)
+## Management adapter (prepared, not installed)
+
+The source adapter in [../management-adapter](../management-adapter/README.md)
+implements the selection, signing and refresh contract below for verified
+NetBird v0.81.3 source. It remains opt-in and is not a runtime plugin for the
+unchanged official server. See its README for delayed revocation and relay-refresh
+requirements.
+
+### Credential contract
 
 A compatible adapter must supply proto.NetbirdConfig.Flow to each authenticated
-peer through the existing encrypted Login/Sync path:
+peer through the existing encrypted full Sync/credential-refresh path:
 
 - url: public HTTPS receiver origin, not the internal loopback address;
 - enabled: true only for explicitly selected peers/groups;

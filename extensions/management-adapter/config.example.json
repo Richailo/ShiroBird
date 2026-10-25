@@ -1,0 +1,9 @@
+{
+  "enabled": false,
+  "receiver_url": "https://flows.example.invalid",
+  "secret_file": "/run/secrets/native_flow_secret",
+  "peer_ids": [],
+  "group_ids": [],
+  "interval_seconds": 60,
+  "counters": false
+}
