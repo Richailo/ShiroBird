@@ -23,6 +23,7 @@ jobs:
       - run: node integration/test-auth-flash.cjs
       - run: node integration/test-no-white-flash.cjs
       - run: node integration/test-traffic-ui.cjs
+      - run: node integration/test-toolbar.cjs
       - run: docker build -t shirobird:test .
       - name: Dashboard bridge integration smoke test
         run: |
@@ -43,6 +44,9 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/api/stats)" = "401"
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/api/siem/status)" = "401"
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/api/traffic/analytics)" = "401"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/api/traffic/native?filtered=1)" = "401"
+          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=traffic-flow' | grep -q 'id="native-stream-card"'
+          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=traffic-flow' | grep -q 'id="native-page-size"'
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/api/traffic/sensors)" = "401"
           curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=traffic-flow' | grep -q 'id="flow-groups"'
           curl -fsS http://127.0.0.1:8082/shirobird/icons/windows.svg | grep -q '<svg'
