@@ -40,6 +40,13 @@ render({available:false});
 assert.equal($("native-stat-total").textContent,"—",
   "unavailable source must not masquerade as zero events");
 assert.match($("native-summary-status").textContent,/unavailable/);
+render({available:false,receiver_online:true,
+ status:{total:1973,received_24h:1310,reporters:2,
+ reports_with_drops:398,last_received:1793022716},
+ note:"Native receiver rejected traffic filters (HTTP 400)."});
+assert.equal($("native-stat-total").textContent,"1,973",
+  "upstream query error must retain valid online receiver counters");
+assert.match($("native-summary-status").textContent,/traffic query failed/);
 render({available:true,status:{total:0,received_24h:0,reporters:0,
   reports_with_drops:0,last_received:null}});
 assert.equal($("native-stat-total").textContent,"0",
