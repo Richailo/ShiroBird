@@ -17,6 +17,8 @@
   let directoryFetchedAt = 0;
   let pendingAuth = null;
   let renderQueued = false;
+  let frameReady = false;
+  let loadedPage = null;
 
   function selectedPage() {
     const slug = location.hash.startsWith(ROOT) ? location.hash.slice(ROOT.length) : "";
@@ -208,7 +210,9 @@
     const frame = document.createElement("iframe");
     frame.title = "ShiroBird";
     frame.referrerPolicy = "no-referrer";
-    frame.loading = "lazy";
+    // A hidden lazy iframe may never load. Start the authenticated document
+    // eagerly, but only reveal it after the embedded app signals first paint.
+    frame.loading = "eager";
     frame.hidden = true;
     frame.addEventListener("load", () => { applyTheme(); sendPeersToFrame(); });
     panel.append(message, frame);
@@ -316,12 +320,40 @@
     const page = selectedPage();
     if (!panel || !page) return;
     const frame = panel.querySelector("iframe");
-    if (frame.hidden) return;
-    const url = "/shirobird/?embedded=1&view=" + encodeURIComponent(page.slug) +
-      "&theme=" + (document.documentElement.classList.contains("dark") ? "dark" : "light");
-    if (frame.getAttribute("src") !== url) frame.setAttribute("src", url);
-    else applyTheme();
+    // Never navigate an already loaded iframe just to switch tabs or themes:
+    // navigation used to expose the browser's temporary white about:blank.
+    if (!frame.getAttribute("src")) {
+      frameReady = false;
+      loadedPage = page.slug;
+      frame.hidden = true;
+      const url = "/shirobird/?embedded=1&view=" + encodeURIComponent(page.slug) +
+        "&theme=" + (document.documentElement.classList.contains("dark") ? "dark" : "light");
+      frame.setAttribute("src", url);
+    } else if (frameReady && loadedPage !== page.slug) {
+      loadedPage = page.slug;
+      frame.contentWindow.postMessage({
+        source: "shirobird-navigate", view: page.slug
+      }, location.origin);
+    }
+    if (frameReady && lastAuth > 0) {
+      frame.hidden = false;
+      panel.querySelector(".shirobird-auth-message").hidden = true;
+    }
+    applyTheme();
   }
+  // App-ready is sent by the same-origin embedded ShiroBird document AFTER
+  // its first render, so a white iframe never appears while it is loading.
+  window.addEventListener("message", event => {
+    const panel = document.getElementById(VIEW_ID);
+    const frame = panel && panel.querySelector("iframe");
+    if (!frame || event.origin !== location.origin ||
+        event.source !== frame.contentWindow || !event.data ||
+        event.data.source !== "shirobird-ready") return;
+    frameReady = true;
+    applyTheme();
+    sendPeersToFrame();
+    showPage();
+  });
   async function netbirdLogin() {
     if (pendingAuth) return pendingAuth;
     pendingAuth = (async () => {
@@ -347,8 +379,9 @@
           : "NetBird session verification failed.");
         lastAuth = Date.now();
         if (selectedPage()?.slug === "traffic-flow") void updatePeerDirectory(token);
-        frame.hidden = false;
-        message.hidden = true;
+        // The child iframe remains hidden until it reports ready; do not
+        // reveal its initial about:blank/loading surface.
+        message.hidden = frameReady;
         showPage();
       } catch (error) {
         frame.hidden = true;
@@ -369,6 +402,7 @@
     panel.hidden = !page;
     if (!page) return;
     positionPanel();
+    applyTheme();
     if (Date.now() - lastAuth > 90000) void netbirdLogin();
     else showPage();
   }
