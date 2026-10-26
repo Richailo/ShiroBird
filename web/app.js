@@ -112,9 +112,16 @@ function renderAnalytics() {
       fmt(item.starts), fmt(item.allows || 0), fmt(item.blocks || 0),
       fmt(item.drops || 0), fmt(item.ends), humanBytes(item.bytes)
     ];
-    for (const value of values) {
+    for (const [i,value] of values.entries()) {
       const td = document.createElement("td");
-      td.textContent = String(value);
+      if (i === 1) td.append(nativePeer(item.src));
+      else if (i === 2) td.append(nativePeer(item.dst, item.dport));
+      else if (i === 4) {
+        const chip = document.createElement("span");
+        chip.className = "native-chip";
+        chip.textContent = String(value);
+        td.append(chip);
+      } else td.textContent = String(value);
       tr.append(td);
     }
     nodes.append(tr);
@@ -516,9 +523,28 @@ function renderFlows() {
       [row.application, row.filter_id ? "filter #" + row.filter_id : ""].filter(Boolean).join(" · ") || "—",
       fmt(row.bytes)
     ];
-    for (const value of values) {
+    for (const [i,value] of values.entries()) {
       const cell = document.createElement("td");
-      cell.textContent = value;
+      if (i === 4) cell.append(nativePeer(row.src, row.sport));
+      else if (i === 5) cell.append(nativePeer(row.dst, row.dport));
+      else if (i === 2) {
+        const status = document.createElement("span");
+        status.className = "native-event-inline";
+        const dot = document.createElement("span");
+        dot.className = "native-event-dot native-event-" +
+          (row.type === "BLOCK" || row.type === "DROP" ? "blocked" :
+          row.type === "ALLOW" || row.type === "NEW" ? "started" :
+          row.type === "DESTROY" ? "ended" : "unknown");
+        const label = document.createElement("span");
+        label.textContent = String(value);
+        status.append(dot,label);
+        cell.append(status);
+      } else if (i === 3) {
+        const chip = document.createElement("span");
+        chip.className = "native-chip";
+        chip.textContent = String(value);
+        cell.append(chip);
+      } else cell.textContent = String(value);
       tr.append(cell);
     }
     fragment.append(tr);
