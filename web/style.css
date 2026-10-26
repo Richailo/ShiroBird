@@ -306,3 +306,71 @@ body.embedded .stats article { background:var(--surface); }
 body.embedded .siem-grid .panel, body.embedded .flow-analytics-grid .panel {
   background:var(--surface);
 }
+
+/* Native NetBird Traffic Events visual language: source / destination icon
+   tiles, flow verdicts, protocol chips, RX/TX direction and sort affordances. */
+.native-events-panel{margin-bottom:20px}
+.native-scope-note{font-size:11px;line-height:1.5;color:var(--muted);
+  padding:10px 20px 12px;margin:0;max-width:100%;overflow-wrap:anywhere}
+.native-table-actions{min-width:0;flex-wrap:wrap}
+.native-table-actions input{min-width:200px;height:38px;min-height:38px}
+.sr-label{position:absolute;width:1px;height:1px;overflow:hidden;
+  clip:rect(0,0,0,0);white-space:nowrap}
+.native-events-table{width:100%;min-width:1050px;border-collapse:collapse;
+  table-layout:auto}
+.native-events-table th{height:44px;padding:0 14px;
+  background:var(--table-head);white-space:nowrap;border-bottom:1px solid var(--stroke);
+  color:var(--muted);font-size:11px;letter-spacing:.35px}
+.native-events-table th:first-child,.native-events-table td:first-child{padding-left:20px}
+.native-events-table td{height:76px;vertical-align:middle;padding:10px 14px;
+  border-bottom:1px solid var(--stroke);font-size:12px;max-width:300px}
+.native-events-table tbody tr:hover{background:var(--hover)}
+.native-events-table tbody tr:last-child td{border-bottom:0}
+.native-sort{display:inline-flex;align-items:center;justify-content:flex-start;
+  border:0;border-radius:4px;background:transparent;color:var(--muted);
+  box-shadow:none;padding:5px 0;min-height:28px;height:auto;
+  font-size:11px;letter-spacing:.35px;font-weight:600}
+.native-sort:hover{background:transparent;color:var(--text)}
+.native-sort-arrow{font-size:15px;margin-left:6px;line-height:1;
+  color:var(--muted);opacity:.75}
+.native-sort[aria-sort="ascending"] .native-sort-arrow,
+.native-sort[aria-sort="descending"] .native-sort-arrow{opacity:1;color:var(--primary)}
+.native-peer{display:inline-flex;align-items:center;gap:10px;max-width:100%;min-width:0}
+.native-os-icon{width:34px;height:34px;display:inline-flex;align-items:center;
+  justify-content:center;flex:0 0 34px;color:var(--muted);
+  border-radius:7px;background:var(--field);border:1px solid var(--stroke)}
+.native-os-icon svg{width:18px;height:18px}
+.native-peer-details{display:flex;flex-direction:column;gap:4px;min-width:0}
+.native-peer-name{display:block;font-size:12px;font-weight:550;color:var(--text);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px}
+.native-peer-address{display:block;color:var(--muted);font-size:11px;
+  white-space:nowrap;font-variant-numeric:tabular-nums}
+.native-event{display:flex;align-items:flex-start;gap:10px;min-width:235px;max-width:340px}
+.native-event>div{display:flex;flex-direction:column;gap:5px;min-width:0}
+.native-event strong{font-weight:550;color:var(--text);font-size:12px;line-height:1.4}
+.native-event small{font-size:11px;color:var(--muted);line-height:1.35;
+  overflow-wrap:anywhere}
+.native-event-dot{width:9px;height:9px;border-radius:50%;margin-top:4px;flex:0 0 9px;
+  background:var(--muted)}
+.native-event-started{background:var(--success)}
+.native-event-blocked{background:var(--danger)}
+.native-event-ended,.native-event-unknown{background:var(--muted);opacity:.62}
+.native-protocol{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.native-chip{display:inline-flex;align-items:center;justify-content:center;
+  min-height:31px;border:1px solid var(--stroke);padding:5px 10px;
+  border-radius:6px;font-weight:550;font-size:11px;color:var(--muted);
+  background:var(--soft)}
+.native-chip-port{font-variant-numeric:tabular-nums}
+.native-traffic{display:flex;flex-direction:column;gap:7px;white-space:nowrap;
+  font-size:12px;font-variant-numeric:tabular-nums}
+.native-traffic-line{display:flex;align-items:center;gap:9px}
+.native-traffic-arrow{display:inline-flex;justify-content:center;width:15px;
+  font-size:18px;line-height:1;font-weight:650}
+.native-traffic-rx .native-traffic-arrow{color:#49bcf5}
+.native-traffic-tx .native-traffic-arrow{color:#f68330}
+.native-unknown{color:var(--muted)}
+@media(max-width:760px){
+  .native-table-actions{width:100%}
+  .native-table-actions input{width:100%;min-width:0}
+  .native-events-table{min-width:940px}
+}
