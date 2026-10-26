@@ -28,16 +28,30 @@
           <a href="api/export.ndjson" class="button secondary">Export JSONL</a>
         </div>
       </div>
-      <section class="panel" aria-label="Native peer reports">
+      <section class="panel native-events-panel" aria-label="Native NetBird peer traffic reports">
         <div class="panelhead"><div><h2>Native peer reports · P2P and routed</h2>
-          <p id="native-note">Checking optional receiver…</p></div>
-          <button id="native-next" class="secondary" type="button" hidden>Next reports</button>
+          <p id="native-note">Checking native NetBird flow receiver…</p></div>
+          <div class="actions native-table-actions">
+            <label for="native-search" class="sr-label">Filter loaded native flows</label>
+            <input id="native-search" type="search" placeholder="Search peer, IP or port" aria-label="Filter loaded native flows">
+            <button id="native-next" class="secondary" type="button" hidden>Next 100</button>
+          </div>
         </div>
-        <div class="tablewrap" id="native-table" hidden><table>
-          <thead><tr><th>Time</th><th>Reporting peer</th><th>Source</th><th>Destination</th>
-          <th>Protocol / direction</th><th>Starts</th><th>Ends</th><th>Drops</th><th>Bytes</th><th>Reported rule</th></tr></thead>
-          <tbody id="native-rows"></tbody>
-        </table></div>
+        <p class="native-scope-note">Traffic directions and byte counters are reported from each NetBird peer's perspective. Sort and search apply to the loaded page only.</p>
+        <div class="tablewrap" id="native-table" hidden tabindex="0" aria-label="Native peer traffic events, horizontally scrollable">
+          <table class="native-events-table">
+            <thead><tr>
+              <th><button type="button" class="native-sort" data-native-sort="ts" aria-label="Sort loaded events by time">TIME <span class="native-sort-arrow" aria-hidden="true">↓</span></button></th>
+              <th><button type="button" class="native-sort" data-native-sort="severity" aria-label="Sort loaded events by event type">EVENT <span class="native-sort-arrow" aria-hidden="true">↕</span></button></th>
+              <th><button type="button" class="native-sort" data-native-sort="src" aria-label="Sort loaded events by source">SOURCE <span class="native-sort-arrow" aria-hidden="true">↕</span></button></th>
+              <th>PROTOCOL &amp; PORT</th>
+              <th><button type="button" class="native-sort" data-native-sort="dst" aria-label="Sort loaded events by destination">DESTINATION <span class="native-sort-arrow" aria-hidden="true">↕</span></button></th>
+              <th>TRAFFIC</th>
+              <th>ROUTER</th>
+            </tr></thead>
+            <tbody id="native-rows"></tbody>
+          </table>
+        </div>
       </section>
       <div class="flow-tools">
         <label>Time range
