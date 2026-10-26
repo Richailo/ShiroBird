@@ -66,6 +66,7 @@ async function req(url, options = {}) {
 
 // Optional metadata is received from the logged-in NetBird parent's /api/peers.
 let peerByIP = new Map();
+let peerById = new Map();
 let flowSnapshot = null;
 function endpoint(ip) {
   const peer = peerByIP.get(ip);
@@ -204,34 +205,242 @@ function renderSensors(data) {
   }
   $("flow-sensor-list").replaceChildren(fragment);
 }
+// Presentation follows NetBird's Traffic Events layout, using only
+// fields that the native reporter actually provided.
+const trafficNS = "http://www.w3.org/2000/svg";
+const trafficShapes = {
+  windows: ["rect:2,2,9,9", "rect:13,2,9,9", "rect:2,13,9,9", "rect:13,13,9,9"],
+  macos: ["path:M12 20.9c1.5 0 2.7 1.1 4 1.1 3 0 4-4.2 4-7.5 0-3.2-1.5-5.5-4.5-5.5-1.5 0-2.5 1-3.5 1s-2-1-3.5-1C5.5 9 4 11.3 4 14.5 4 17.8 5 22 8 22c1.3 0 2.5-1.1 4-1.1Z",
+    "path:M12 8c0-3 1.5-5 4-6 0 3-1.5 5-4 6Z"],
+  linux: ["rect:3,4,18,16", "path:M7 9l3 3-3 3", "path:M13 16h4"],
+  android: ["path:M5 10a7 7 0 0 1 14 0", "path:M5 10v7h14v-7", "path:M8 5 6 2", "path:M16 5l2-3"],
+  mobile: ["rect:7,2,10,20", "path:M11 18h2"],
+  monitor: ["rect:2,3,20,15", "path:M8 22h8 M12 18v4"],
+  globe: ["circle:12,12,9", "path:M3 12h18", "path:M12 3a16 16 0 0 0 0 18", "path:M12 3a16 16 0 0 1 0 18"]
+};
+function osKind(value) {
+  const os = String(value || "").toLowerCase();
+  if (/windows/.test(os)) return "windows";
+  if (/darwin|mac\s?os|macos|os x/.test(os)) return "macos";
+  if (/android/.test(os)) return "android";
+  if (/ios|iphone|ipad/.test(os)) return "mobile";
+  if (/linux|ubuntu|debian|fedora|centos|arch/.test(os)) return "linux";
+  return "monitor";
+}
+function nativeIcon(kind) {
+  const tile = document.createElement("span");
+  tile.className = "native-os-icon";
+  tile.title = kind === "globe" ? "Network resource / IP address" :
+    kind === "monitor" ? "Peer (OS not reported)" : kind.toUpperCase();
+  tile.setAttribute("aria-label", tile.title);
+  const svg = document.createElementNS(trafficNS, "svg");
+  for (const [k,v] of Object.entries({
+    viewBox:"0 0 24 24", width:"18",height:"18",
+    fill:kind === "windows" ? "currentColor" : "none",
+    stroke:"currentColor","stroke-width":"1.6",
+    "stroke-linecap":"round","stroke-linejoin":"round"
+  })) svg.setAttribute(k,v);
+  for (const token of (trafficShapes[kind] || trafficShapes.monitor)) {
+    const [shape,args] = token.split(":");
+    const node = document.createElementNS(trafficNS,shape);
+    if (shape === "rect") {
+      const [x,y,w,h] = args.split(",");
+      for (const [name,val] of [["x",x],["y",y],["width",w],["height",h]])
+        node.setAttribute(name,val);
+      if (kind !== "windows") node.setAttribute("rx","1.5");
+    } else if (shape === "circle") {
+      const [cx,cy,r] = args.split(",");
+      node.setAttribute("cx",cx);node.setAttribute("cy",cy);node.setAttribute("r",r);
+    } else node.setAttribute("d",args);
+    svg.append(node);
+  }
+  tile.append(svg);
+  return tile;
+}
+function nativePeer(ip, port=0) {
+  const peer = peerByIP.get(ip);
+  const wrapper = document.createElement("span");
+  wrapper.className = "native-peer";
+  const kind = peer ? osKind(peer.os) : "globe";
+  wrapper.append(nativeIcon(kind));
+  const caption = document.createElement("span");
+  caption.className = "native-peer-details";
+  const name = document.createElement("strong");
+  name.className = "native-peer-name";
+  name.textContent = peer?.name || ip || "Unknown";
+  name.title = name.textContent;
+  const address = document.createElement("small");
+  address.className = "native-peer-address";
+  address.textContent = (ip || "—") + (Number(port)>0 ? ":"+Number(port) : "");
+  caption.append(name,address);
+  wrapper.append(caption);
+  return wrapper;
+}
+function nativeProtocol(row) {
+  const container = document.createElement("span");
+  container.className = "native-protocol";
+  const proto = document.createElement("span");
+  proto.className = "native-chip";
+  const num = Number(row.protocol);
+  proto.textContent = ({6:"TCP",17:"UDP",1:"ICMP",58:"ICMPv6",132:"SCTP"})[num] || ("IP "+num);
+  container.append(proto);
+  const port = num === 6 || num === 17 ? Number(row.dport) :
+    num === 1 || num === 58 ? null : 0;
+  const meta = document.createElement("span");
+  meta.className = "native-chip native-chip-port";
+  if (port !== null && port > 0) meta.textContent = String(port);
+  else if (num === 1 || num === 58) {
+    const type = Number(row.icmp_type);
+    meta.textContent = (type === 8 || type === 128) ? "Echo request" :
+      (type === 0 || type === 129) ? "Echo reply" : "Type " + (Number.isFinite(type) ? type : "?");
+  } else meta.textContent = "—";
+  container.append(meta);
+  return container;
+}
+function nativeSeverity(row) {
+  const drops = Number(row.num_of_drops || 0);
+  const starts = Number(row.num_of_starts || 0);
+  const ends = Number(row.num_of_ends || 0);
+  return drops > 0 ? "blocked" : starts > 0 ? "started" : ends > 0 ? "ended" : "unknown";
+}
+function nativeEventDescription(row) {
+  const reporter = peerById.get(row.reporter_id)?.name || row.reporter_id || "Peer";
+  const severity = nativeSeverity(row);
+  const direction = Number(row.direction);
+  if (severity === "blocked") return "Connection blocked by reporting peer";
+  if (severity === "started")
+    return direction === 2 ? "Connection requested by peer" :
+      direction === 1 ? "Connection received by peer" : "Connection started";
+  if (severity === "ended") return "Connection stopped";
+  return "Traffic flow reported";
+}
+function nativeEventCell(row) {
+  const holder = document.createElement("div");
+  holder.className = "native-event";
+  const badge = document.createElement("span");
+  const level = nativeSeverity(row);
+  badge.className = "native-event-dot native-event-" + level;
+  badge.setAttribute("aria-label",level);
+  const text = document.createElement("div");
+  const title = document.createElement("strong");
+  title.textContent = nativeEventDescription(row);
+  const lines = document.createElement("small");
+  const counts = [];
+  if (Number(row.num_of_starts)) counts.push(fmt(row.num_of_starts)+" starts");
+  if (Number(row.num_of_ends)) counts.push(fmt(row.num_of_ends)+" ends");
+  if (Number(row.num_of_drops)) counts.push(fmt(row.num_of_drops)+" drops");
+  const reporter = peerById.get(row.reporter_id)?.name || row.reporter_id || "Unknown";
+  lines.textContent = counts.join(" · ") + " · Reported by " + reporter +
+    (Number(row.direction) === 1 ? " (incoming)" :
+     Number(row.direction) === 2 ? " (outgoing)" : "");
+  text.append(title,lines);
+  holder.append(badge,text);
+  return holder;
+}
+function nativeTrafficCell(row) {
+  const box = document.createElement("span");
+  box.className = "native-traffic";
+  for (const [direction,value] of [
+    ["rx",row.rx_bytes],["tx",row.tx_bytes]]) {
+    const line = document.createElement("span");
+    line.className = "native-traffic-line native-traffic-" + direction;
+    const arrow = document.createElement("span");
+    arrow.className = "native-traffic-arrow";
+    arrow.textContent = direction === "rx" ? "↓" : "↑";
+    arrow.setAttribute("aria-label",direction === "rx" ?
+      "Received by reporting peer" : "Sent by reporting peer");
+    const number = document.createElement("span");
+    number.textContent = Number.isFinite(Number(value)) ?
+      humanBytes(Number(value)) : "—";
+    line.append(arrow,number);box.append(line);
+  }
+  box.title = "Transfer measured from the reporting peer's perspective";
+  return box;
+}
+function nativeRouterCell(row) {
+  const routed = Boolean(row.source_resource_id || row.destination_resource_id);
+  const reporter = peerById.get(row.reporter_id);
+  // Routing peer verdicts are on the receiving peer. If the data doesn't
+  // identify a confirmed reporter, do not invent a router or resource label.
+  if (!routed || !reporter || Number(row.direction) !== 1) {
+    const empty = document.createElement("span");
+    empty.className = "native-unknown";
+    empty.textContent = "—";
+    return empty;
+  }
+  return nativePeer(reporter.ip || reporter.ipv6 || "",0);
+}
 let nativeCursor = 0;
+let nativeRowsLoaded = [];
+let nativeSort = "ts";
+let nativeDescending = true;
+function renderNativeRows() {
+  const filter = $("native-search").value.toLowerCase().trim();
+  const rows = nativeRowsLoaded.filter(row => {
+    if (!filter) return true;
+    const src = peerByIP.get(row.src)?.name || "";
+    const dst = peerByIP.get(row.dst)?.name || "";
+    const reporter = peerById.get(row.reporter_id)?.name || "";
+    return [row.src,row.dst,src,dst,reporter,row.sport,row.dport,
+      row.reporter_id,row.rule_id].some(x=>String(x||"").toLowerCase().includes(filter));
+  });
+  const order = nativeDescending ? -1 : 1;
+  rows.sort((a,b)=>{
+    if (nativeSort === "severity") {
+      const rating = {blocked:3,started:2,ended:1,unknown:0};
+      return order * (rating[nativeSeverity(a)]-rating[nativeSeverity(b)]);
+    }
+    if (nativeSort === "src" || nativeSort === "dst") {
+      const left = String(peerByIP.get(a[nativeSort])?.name || a[nativeSort] || "");
+      const right = String(peerByIP.get(b[nativeSort])?.name || b[nativeSort] || "");
+      return order * left.localeCompare(right);
+    }
+    return order * (Number(a.ts)-Number(b.ts));
+  });
+  const fragment = document.createDocumentFragment();
+  for (const row of rows) {
+    const tr = document.createElement("tr");
+    tr.className = "native-row native-row-" + nativeSeverity(row);
+    const columns = [
+      [date(row.ts),"native-time"],[nativeEventCell(row),"native-event-cell"],
+      [nativePeer(row.src,row.sport),"native-endpoint-cell"],
+      [nativeProtocol(row),"native-protocol-cell"],
+      [nativePeer(row.dst,row.dport),"native-endpoint-cell"],
+      [nativeTrafficCell(row),"native-traffic-cell"],
+      [nativeRouterCell(row),"native-router-cell"]
+    ];
+    for (const [value,className] of columns) {
+      const td = document.createElement("td");
+      td.className = className;
+      if (typeof value === "string") td.textContent = value;
+      else td.append(value);
+      tr.append(td);
+    }
+    fragment.append(tr);
+  }
+  if (!rows.length) fragment.append(makeEmptyRow(7,
+    nativeRowsLoaded.length ? "No events match this filter on the loaded page" :
+    "No native reports received yet. Events appear when NetBird peers report activity."));
+  $("native-rows").replaceChildren(fragment);
+  for (const btn of document.querySelectorAll("[data-native-sort]")) {
+    const active = btn.dataset.nativeSort === nativeSort;
+    btn.setAttribute("aria-sort", active ?
+      (nativeDescending ? "descending" : "ascending") : "none");
+    const arrow = btn.querySelector(".native-sort-arrow");
+    if (arrow) arrow.textContent = active ? (nativeDescending ? "↓" : "↑") : "↕";
+  }
+}
 async function refreshNative(next = false) {
   if (!next) nativeCursor = 0;
   try {
     const data = await req("api/traffic/native?limit=100&since=" + nativeCursor);
-    $("native-note").textContent = data.note;
+    $("native-note").textContent = data.note || "Native receiver status unavailable.";
     $("native-table").hidden = !data.available;
-    $("native-next").hidden = !data.available || data.flows.length < 100;
-    const fragment = document.createDocumentFragment();
-    for (const row of data.flows || []) {
-      const tr = document.createElement("tr");
-      const protocol = ({6:"TCP",17:"UDP",1:"ICMP",58:"ICMPv6"})[row.protocol] || row.protocol;
-      const values = [date(row.ts), row.reporter_id, endpoint(row.src) + ":" + row.sport,
-        endpoint(row.dst) + ":" + row.dport,
-        protocol + " / " + ({1:"ingress",2:"egress"}[row.direction] || "unknown"),
-        fmt(row.num_of_starts), fmt(row.num_of_ends), fmt(row.num_of_drops),
-        humanBytes(Number(row.rx_bytes) + Number(row.tx_bytes)), row.rule_id || "Unavailable"];
-      for (const value of values) {
-        const cell = document.createElement("td");
-        cell.textContent = String(value);
-        tr.append(cell);
-      }
-      fragment.append(tr);
-    }
-    if (!(data.flows || []).length)
-      fragment.append(makeEmptyRow(10, "No native reports received yet. Reports appear when connected peers generate traffic with native reporting enabled."));
-    $("native-rows").replaceChildren(fragment);
+    const returned = Array.isArray(data.flows) ? data.flows : [];
+    nativeRowsLoaded = returned;
+    $("native-next").hidden = !data.available || returned.length < 100 || !data.next_cursor;
     nativeCursor = data.next_cursor || 0;
+    renderNativeRows();
   } catch (_) {
     $("native-note").textContent = "Native reports unavailable";
     $("native-table").hidden = true;
@@ -239,6 +448,14 @@ async function refreshNative(next = false) {
   }
 }
 $("native-next").addEventListener("click", () => refreshNative(true));
+$("native-search").addEventListener("input", renderNativeRows);
+document.querySelectorAll("[data-native-sort]").forEach(button =>
+  button.addEventListener("click", () => {
+    const next = button.dataset.nativeSort;
+    if (nativeSort === next) nativeDescending = !nativeDescending;
+    else { nativeSort = next; nativeDescending = true; }
+    renderNativeRows();
+  }));
 async function refreshAnalytics() {
   const windowMinutes = Number($("flow-window").value);
   const [data, sensorData] = await Promise.all([
@@ -263,15 +480,22 @@ window.addEventListener("message", event => {
       event.data.source !== "shirobird-peer-directory" || !Array.isArray(event.data.peers))
     return;
   peerByIP = new Map();
+  peerById = new Map();
   for (const peer of event.data.peers.slice(0, 5000)) {
     if (!peer || typeof peer !== "object" || typeof peer.name !== "string") continue;
     for (const ip of [peer.ip, peer.ipv6]) {
       if (typeof ip === "string" && ip.length && ip.length < 65)
-        peerByIP.set(ip.split("/")[0], {name: peer.name, connected: !!peer.connected});
+        peerByIP.set(ip.split("/")[0], {name: peer.name, id: peer.id,
+          ip: peer.ip, ipv6: peer.ipv6, connected: !!peer.connected, os: peer.os});
     }
+  }
+  for (const peer of event.data.peers.slice(0,5000)) {
+    if (typeof peer?.id === "string" && typeof peer.name === "string")
+      peerById.set(peer.id, {name:peer.name,ip:peer.ip,ipv6:peer.ipv6,os:peer.os});
   }
   renderAnalytics();
   renderFlows();
+  renderNativeRows();
 });
 function renderFlows() {
   const filter = $("filter").value.toLowerCase();
