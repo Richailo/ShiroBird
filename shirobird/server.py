@@ -601,7 +601,7 @@ class Handler(BaseHTTPRequestHandler):
             if qs.get("filtered", ["0"])[0] == "1":
                 filters = {k: value for k in
                            ("before","limit","start","end","q","protocol",
-                            "state","reporters","ips","search_ips","page","sort","order")
+                            "state","reporters","ips","search_ips","page","sort","order","flow_id")
                            if (value := qs.get(k, [""])[0]) != ""}
                 if any(len(v) > (1024 if k in ("reporters","ips","search_ips") else 125)
                        for k,v in filters.items()):
