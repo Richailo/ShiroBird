@@ -708,8 +708,8 @@ function populateNativeUsers() {
     option.textContent=user.name||user.id;
     dropdown.append(option);
   }
-  dropdown.value=selected && dropdown.querySelector(
-    'option[value="'+CSS.escape(selected)+'"]') ? selected : "";
+  dropdown.value=selected && Array.from(dropdown.options)
+    .some(option=>option.value===selected) ? selected : "";
 }
 async function refreshNative(resetPage=false) {
   if (resetPage) nativePage=0;
