@@ -406,3 +406,27 @@ body.embedded .siem-grid .panel, body.embedded .flow-analytics-grid .panel {
 .native-sort-arrow{display:inline-flex;align-items:center;justify-content:center;
   width:16px;height:16px;margin-left:5px;font-size:inherit}
 .native-sort-arrow svg{height:16px;width:16px;stroke-width:2px}
+
+/* Native Traffic Events: accessible per-event policy and route drill-down. */
+.native-event-expand {
+  display:inline-flex;align-items:center;justify-content:center;
+  min-height:26px;padding:4px 9px;margin-top:7px;
+  border:1px solid var(--stroke);border-radius:5px;
+  background:var(--soft);color:var(--muted);font:500 11px inherit;
+  cursor:pointer;
+}
+.native-event-expand:hover {background:var(--hover);color:var(--text)}
+.native-event-expand[aria-expanded="true"]{color:var(--text);border-color:var(--input-border)}
+.native-expanded-row td{background:var(--page);padding:14px 20px!important}
+.native-expanded-row:hover td{background:var(--page)!important}
+.native-details{border:1px solid var(--stroke);background:var(--surface);
+  padding:17px 20px;border-radius:7px;min-width:0;}
+.native-details>strong{font-size:14px;color:var(--text);font-weight:600}
+.native-details-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));
+  gap:16px 22px;margin:16px 0 10px}
+.native-details-grid>div{min-width:0;display:grid;gap:6px}
+.native-details-grid dt{font-size:11px;color:var(--muted);font-weight:500}
+.native-details-grid dd{font-size:12px;color:var(--text);margin:0;overflow-wrap:anywhere}
+.native-details-caveat{font-size:11px;color:var(--muted);line-height:1.55;margin:16px 0 0}
+.native-router-config{opacity:.9}
+.native-router-id{font-size:12px;overflow-wrap:anywhere}
