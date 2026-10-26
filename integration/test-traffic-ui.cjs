@@ -37,13 +37,16 @@ assert.equal(helper.osKind("Debian GNU/Linux"),"linux");
 assert.equal(helper.osKind("iOS"),"mobile");
 assert.equal(helper.osKind("Unknown"),"monitor");
 const windows=helper.nativePeer("100.64.1.10",55444);
-assert.equal(windows.children[0].children[0].children.length,4,"Windows has recognizable four pane icon");
+assert.equal(windows.children[0].children[0].tagName,"img","Windows uses upstream Font Awesome asset");
+assert.equal(windows.children[0].children[0].attributes.src,"icons/windows.svg");
 assert.match(treeText(windows),/WINN-10/);
 assert.match(treeText(windows),/100.64.1.10:55444/);
 const mac=helper.nativePeer("100.64.1.11");
 assert.match(mac.children[0].title,/MACOS/);
+assert.equal(mac.children[0].children[0].attributes.src,"icons/macos.svg");
 const linux=helper.nativePeer("100.64.1.12");
 assert.match(linux.children[0].title,/LINUX/);
+assert.equal(linux.children[0].children[0].attributes.src,"icons/linux.svg");
 const unknown=helper.nativePeer("8.8.8.8");
 assert.match(unknown.children[0].title,/Network resource/);
 assert.doesNotMatch(treeText(unknown),/Windows|Linux/);
@@ -53,8 +56,10 @@ const row={ts:1730000000,protocol:6,dport:443,src:"100.64.1.10",
   num_of_ends:1,num_of_drops:0};
 const directions=helper.nativeTrafficCell(row);
 assert.equal(directions.children.length,2,"RX and TX show as distinct rows");
-assert.equal(directions.children[0].children[0].textContent,"↓");
-assert.equal(directions.children[1].children[0].textContent,"↑");
+assert.equal(directions.children[0].children[0].children[0].tagName,"svg");
+assert.equal(directions.children[1].children[0].children[0].tagName,"svg");
+assert.equal(directions.children[0].children[0].children[0].children[0].attributes.d,"M12 5v14");
+assert.equal(directions.children[1].children[0].children[0].children[0].attributes.d,"M12 19V5");
 assert.match(treeText(directions),/1.0 KB/);
 assert.match(treeText(directions),/2.0 KB/);
 assert.match(directions.children[0].children[0].attributes["aria-label"],/Received/);
@@ -66,6 +71,7 @@ assert.equal(helper.nativeSeverity({...row,num_of_drops:4}),"mixed");
 assert.match(helper.nativeEventDescription({...row,num_of_drops:4}),/blocked attempts/);
 assert.equal(helper.nativeSeverity({...row,num_of_starts:0,num_of_drops:4}),"blocked");
 assert.equal(helper.nativeSeverity({...row,num_of_starts:0,num_of_ends:1}),"ended");
+assert.equal(helper.nativeProtocol(row).children[0].children[0].tagName,"svg","Exact Lucide Share2 protocol symbol");
 assert.equal(helper.nativeProtocol(row).children[1].textContent,"443");
 assert.match(treeText(helper.nativeProtocol({...row,protocol:1,icmp_type:8})),/Echo request/);
 assert.equal(treeText(helper.nativeRouterCell(row)).trim(),"—",
@@ -82,4 +88,13 @@ assert.ok(html.includes('data-native-sort="dst"'),"sortable destination header")
 assert.ok(html.includes("PROTOCOL &amp; PORT"),"native column layout");
 assert.ok(css.includes(".native-traffic-rx .native-traffic-arrow"),"RX styling");
 assert.ok(css.includes(".native-traffic-tx .native-traffic-arrow"),"TX styling");
-console.log("Native peer OS icons, real RX/TX arrows, verdicts, routing semantics and sort controls passed.");
+
+const sortGlyph=Function("document", "trafficNS", source.slice(
+  source.indexOf("function tablerSortIcon(descending) {"),
+  source.indexOf("function nativePeer(ip, port=0) {"))+"\nreturn tablerSortIcon")(
+  document,"http://www.w3.org/2000/svg");
+assert.equal(sortGlyph(true).children[0].attributes.d,"M4 6l9 0","Tabler descending glyph");
+assert.equal(sortGlyph(false).children[0].attributes.d,"M4 6l7 0","Tabler ascending glyph");
+assert.match(css,/native-library-icon/, "Native NetBird library icon styles");
+
+console.log("Original NetBird icon libraries, traffic arrows, sorting and flow semantics passed.");
