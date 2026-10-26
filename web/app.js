@@ -649,7 +649,7 @@ function renderNativeFilterChips() {
 function renderNativeSummary(data) {
   const keys=["total","received_24h","reporters","reports_with_drops"];
   const targets=["native-stat-total","native-stat-day","native-stat-peers","native-stat-drops"];
-  const values=data.available && data.status && keys.every(
+  const values=(data.available || data.receiver_online) && data.status && keys.every(
     key => Number.isFinite(Number(data.status[key])));
   for(let i=0;i<targets.length;i++)
     $(targets[i]).textContent=values?fmt(Number(data.status[keys[i]])):"—";
@@ -657,6 +657,7 @@ function renderNativeSummary(data) {
   $("native-stat-last").textContent=recent?date(recent):"—";
   $("native-summary-status").textContent=data.available ?
     "Receiver online · native reports, not conntrack sessions" :
+    data.receiver_online ? "Receiver online · traffic query failed" :
     "Native receiver unavailable — counts not confirmed";
 }
 function renderNativeStreamState(data) {
@@ -664,9 +665,14 @@ function renderNativeStreamState(data) {
   const description=$("native-stream-description");
   label.classList.remove("receiving","offline");
   if (!data.available) {
-    label.textContent="Offline";
-    label.classList.add("offline");
-    description.textContent="Native event receiver is unavailable";
+    if (data.receiver_online) {
+      label.textContent="Query error";
+      description.textContent=data.note || "Native event filter request failed";
+    } else {
+      label.textContent="Offline";
+      label.classList.add("offline");
+      description.textContent=data.note || "Native event receiver is unavailable";
+    }
     return;
   }
   const last=Number(data.status?.last_received||0);
