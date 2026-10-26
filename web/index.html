@@ -39,18 +39,6 @@
         <article><span>Reports with drops</span><strong id="native-stat-drops">—</strong></article>
         <article><span>Last native report</span><strong id="native-stat-last">—</strong></article>
       </section>
-      <div class="traffic-stat-head local">
-        <h2>Local monitoring <small>· separate from native NetBird events</small></h2>
-      </div>
-      <section class="stats local-sensor-stats" aria-label="Local conntrack and Windows WFP metrics">
-        <article><span>Observed starts</span><strong id="flow-starts">—</strong></article>
-        <article><span>Observed ends</span><strong id="flow-ends">—</strong></article>
-        <article><span>Completed-session bytes</span><strong id="flow-bytes">—</strong></article>
-        <article><span>Reporting sensors</span><strong id="flow-sensors">—</strong></article>
-        <article><span>Windows WFP allowed</span><strong id="flow-allowed">—</strong></article>
-        <article><span>Windows WFP blocked connections</span><strong id="flow-blocked">—</strong></article>
-        <article><span>Windows WFP dropped packets</span><strong id="flow-dropped">—</strong></article>
-      </section>
       <section class="panel native-events-panel" aria-label="Native NetBird peer traffic reports">
         <div class="panelhead native-events-heading">
           <div><h2>Native peer reports · P2P and routed</h2>
@@ -184,6 +172,21 @@
           </div>
         </div>
       </section>
+      <!-- Legacy sensor widgets remain as inert, hidden DOM references for
+           backwards-compatible scripts; they are not part of Traffic Flow. -->
+      <div id="legacy-local-observability" hidden aria-hidden="true">
+      <div class="traffic-stat-head local">
+        <h2>Local monitoring <small>· separate from native NetBird events</small></h2>
+      </div>
+      <section class="stats local-sensor-stats" aria-label="Local conntrack and Windows WFP metrics">
+        <article><span>Observed starts</span><strong id="flow-starts">—</strong></article>
+        <article><span>Observed ends</span><strong id="flow-ends">—</strong></article>
+        <article><span>Completed-session bytes</span><strong id="flow-bytes">—</strong></article>
+        <article><span>Reporting sensors</span><strong id="flow-sensors">—</strong></article>
+        <article><span>Windows WFP allowed</span><strong id="flow-allowed">—</strong></article>
+        <article><span>Windows WFP blocked connections</span><strong id="flow-blocked">—</strong></article>
+        <article><span>Windows WFP dropped packets</span><strong id="flow-dropped">—</strong></article>
+      </section>
       <div class="flow-tools">
         <label>Time range
           <select id="flow-window">
@@ -218,7 +221,8 @@
         <div id="flow-sensor-list" class="flow-sensor-list">
           <p>No reporting sensors detected yet</p>
         </div>
-      </section>
+        </div>
+    </section>
       <div class="flow-analytics-grid">
         <section class="panel">
           <div class="panelhead"><div><h2>Activity over time</h2><p>Connection starts and ends in the selected period</p></div></div>
