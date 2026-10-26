@@ -14,7 +14,9 @@
   let expanded = location.hash.startsWith(ROOT);
   let lastAuth = 0;
   let peerDirectory = [];
+  let routeDirectory = {policies:[], routes:[], networks:[], complete:false};
   let directoryFetchedAt = 0;
+  let directoryPromise = null;
   let pendingAuth = null;
   let renderQueued = false;
   let frameReady = false;
@@ -228,34 +230,103 @@
     frame.contentWindow.postMessage({
       source: "shirobird-peer-directory", peers: peerDirectory
     }, location.origin);
+    frame.contentWindow.postMessage({
+      source: "shirobird-policy-directory", directory: routeDirectory
+    }, location.origin);
   }
   async function updatePeerDirectory(token) {
-    if (Date.now() - directoryFetchedAt < 300000) {
+    if (directoryPromise) return directoryPromise;
+    if (Date.now() - directoryFetchedAt < 180000) {
       sendPeersToFrame();
       return;
     }
-    try {
-      const response = await fetch("/api/peers", {
-        headers: {"Authorization": "Bearer " + token, "Accept": "application/json"},
-        credentials: "same-origin", cache: "no-store"
+    // Read-only NetBird Management API. Only the existing NetBird access token
+    // is used; no PAT, no third-party calls, and no credentials sent to iframe.
+    const get = async endpoint => {
+      const response = await fetch(endpoint, {
+        headers: {"Authorization":"Bearer " + token,"Accept":"application/json"},
+        credentials:"same-origin",cache:"no-store",redirect:"error"
       });
-      if (!response.ok) return;
-      const entries = await response.json();
-      if (!Array.isArray(entries)) return;
-      peerDirectory = entries.slice(0, 5000).filter(peer => peer && typeof peer === "object")
-        .map(peer => ({
-          id: String(peer.id || "").slice(0, 128),
-          name: String(peer.name || peer.dns_label || "").slice(0, 128),
-          ip: String(peer.ip || "").slice(0, 64),
-          ipv6: String(peer.ipv6 || "").slice(0, 64),
-          connected: Boolean(peer.connected),
-          // NetBird's API reports OS as a string; do not guess from hostname.
-          os: (typeof peer.os === "string" ? peer.os :
-            typeof peer.os?.name === "string" ? peer.os.name : "").slice(0, 80)
+      if (!response.ok) throw Error("NetBird metadata unavailable: " + response.status);
+      return response.json();
+    };
+    directoryPromise = (async () => {
+      const [peers, policies, routes, networks] = await Promise.allSettled([
+        get("/api/peers"), get("/api/policies"), get("/api/routes"), get("/api/networks")
+      ]);
+      const list = result => result.status === "fulfilled" && Array.isArray(result.value)
+        ? result.value : null;
+      const peerRows = list(peers);
+      if (peerRows) peerDirectory = peerRows.slice(0,5000)
+        .filter(p=>p && typeof p === "object")
+        .map(p=>({
+          id:String(p.id||"").slice(0,128),
+          name:String(p.name||p.dns_label||"").slice(0,128),
+          ip:String(p.ip||"").slice(0,64),
+          ipv6:String(p.ipv6||"").slice(0,64),
+          connected:Boolean(p.connected),
+          os:(typeof p.os==="string" ? p.os :
+              typeof p.os?.name==="string" ? p.os.name : "").slice(0,80)
         }));
-      directoryFetchedAt = Date.now();
+      const policyRows = list(policies);
+      const routeRows = list(routes);
+      const networkRows = list(networks);
+      const networksWithRouting = [];
+      let allNetworksLoaded = Boolean(networkRows);
+      if (networkRows) {
+        // Fixed upper bound and concurrency; no recursive discovery/crawl.
+        const selected = networkRows.slice(0,40);
+        if (networkRows.length > selected.length) allNetworksLoaded = false;
+        const pages = await Promise.all(selected.map(async n=>{
+          const id=String(n.id||"");
+          if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) return null;
+          const [routers, resources] = await Promise.allSettled([
+            get("/api/networks/" + encodeURIComponent(id) + "/routers"),
+            get("/api/networks/" + encodeURIComponent(id) + "/resources")
+          ]);
+          if (!list(routers) || !list(resources)) allNetworksLoaded = false;
+          return {
+            id, name:String(n.name||"").slice(0,128),
+            routerPeers:(list(routers)||[]).filter(r=>r.enabled!==false && r.peer)
+              .map(r=>String(r.peer).slice(0,128)),
+            routerGroups:(list(routers)||[]).filter(r=>r.enabled!==false)
+              .flatMap(r=>Array.isArray(r.peer_groups)?r.peer_groups:[])
+              .map(String).slice(0,100),
+            resources:(list(resources)||[]).slice(0,500).map(r=>({
+              id:String(r.id||"").slice(0,128),
+              name:String(r.name||"").slice(0,128),
+              address:String(r.address||"").slice(0,128)
+            }))
+          };
+        }));
+        for (const p of pages) if (p) networksWithRouting.push(p);
+      }
+      routeDirectory = {
+        complete: Boolean(policyRows && routeRows && networkRows && allNetworksLoaded && peerRows),
+        policies:(policyRows||[]).slice(0,1000).map(p=>({
+          id:String(p.id||"").slice(0,128),
+          name:String(p.name||"").slice(0,128),
+          rules:(Array.isArray(p.rules)?p.rules:[]).slice(0,500).map(r=>({
+            id:String(r.id||"").slice(0,128),
+            name:String(r.name||"").slice(0,128),
+            action:String(r.action||"").slice(0,40)
+          }))
+        })),
+        routes:(routeRows||[]).slice(0,1000).map(r=>({
+          id:String(r.id||"").slice(0,128),
+          network_id:String(r.network_id||"").slice(0,128),
+          name:String(r.description||r.network_id||"").slice(0,128),
+          peer:String(r.peer||"").slice(0,128),
+          enabled:r.enabled!==false,
+          peer_groups:Array.isArray(r.peer_groups)?r.peer_groups.slice(0,50).map(String):[]
+        })),
+        networks:networksWithRouting
+      };
+      directoryFetchedAt=Date.now();
       sendPeersToFrame();
-    } catch (_) { /* Optional peer enrichment; fail with bare IP. */ }
+    })();
+    try { await directoryPromise; } catch (_) { /* metadata optional */ }
+    finally { directoryPromise=null; }
   }
   // Tailwind's native NetBird tokens live in the parent document. The iframe
   // does not inherit its CSS variables, so forward only verified color tokens.
