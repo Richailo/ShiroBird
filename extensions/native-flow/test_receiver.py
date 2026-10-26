@@ -235,6 +235,47 @@ class ReceiverTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.store.search_events(flow_id="ff"*16+"aa",limit=25)
 
+    def test_compact_service_activity_reverse_direction_and_raw_access(self):
+        base=(int(time.time())//300)*300-600
+        for i in range(4):
+            event=sample()
+            event.event_id=bytes([75+i])*16
+            event.flow_fields.flow_id=bytes([85+i])*16
+            event.timestamp.seconds=base+(310 if i==3 else 10)
+            event.window_start.seconds=event.timestamp.seconds
+            event.window_end.seconds=event.timestamp.seconds
+            if i==1:
+                event.flow_fields.source_ip=ipaddress.ip_address("100.64.1.3").packed
+                event.flow_fields.dest_ip=ipaddress.ip_address("100.64.1.2").packed
+                event.flow_fields.port_info.source_port=8006
+                event.flow_fields.port_info.dest_port=55001
+            else:
+                event.flow_fields.port_info.source_port=55000+i
+                event.flow_fields.port_info.dest_port=8006
+            self.store.save(r.event_record(event,"peer-B" if i==2 else "peer-A"))
+        raw=self.store.search_events(limit=25)
+        compact=self.store.search_events(limit=25,compact=True)
+        self.assertEqual(raw["total"],4)
+        self.assertEqual(compact["total"],3)
+        matched=[x for x in compact["flows"] if x["report_count"]==2]
+        self.assertEqual(len(matched),1)
+        summary=matched[0]
+        self.assertEqual(summary["flow_count"],2)
+        self.assertEqual(summary["service_port"],8006)
+        self.assertEqual(summary["num_of_starts"],10)
+        self.assertEqual(summary["num_of_drops"],4)
+        self.assertEqual(summary["reporter_id"],"peer-A")
+        detail=self.store.search_events(limit=25,activity_key=summary["activity_key"])
+        self.assertEqual(detail["total"],2)
+        self.assertTrue(all(x["reporter_id"]=="peer-A" for x in detail["flows"]))
+        self.assertEqual({x["event_id"] for x in detail["flows"]},
+                         {(bytes([75])*16).hex(),(bytes([76])*16).hex()})
+        self.assertTrue(all(not x.get("grouped",False) for x in detail["flows"]))
+        with self.assertRaises(ValueError):
+            self.store.search_events(limit=25,activity_key="bad!")
+        with self.assertRaises(ValueError):
+            self.store.search_events(limit=25,activity_key=summary["activity_key"],compact=True)
+
     def test_http_full_history_query_and_user_filter(self):
         event=sample()
         self.store.save(r.event_record(event,"peer-A"))
