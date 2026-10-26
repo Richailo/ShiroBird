@@ -45,14 +45,14 @@ def snapshot(after=0, limit=200, filters=None):
         if filters is not None:
             options = {k: v for k, v in filters.items() if k in
                        ("before", "limit", "start", "end", "q", "protocol",
-                        "state", "reporters", "ips")}
+                        "state", "reporters", "ips", "search_ips", "page", "sort", "order")}
             page = get("/api/native/query?" + urlencode(options))
         else:
             page = get("/api/native/flows?after=" + str(max(0, int(after))) +
                        "&limit=" + str(min(1000, max(1, int(limit)))))
         return {"configured": True, "available": True, "status": status,
                 "flows": page["flows"], "next_cursor": page["next_cursor"],
-                "has_more": page.get("has_more", False),
+                "page": page.get("page",0), "has_more": page.get("has_more", False),
                 "total": page.get("total", len(page["flows"])),
                 "note": "Peer-reported native flows; reporter perspectives are not deduplicated across peers. "
                         "Do not add native counters to central conntrack totals."}
