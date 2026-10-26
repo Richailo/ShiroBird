@@ -9,7 +9,7 @@ if (embedded && (initialTheme === "dark" || initialTheme === "light")) {
   document.documentElement.classList.toggle("dark", initialTheme === "dark");
   document.documentElement.classList.toggle("light", initialTheme === "light");
 }
-const page = query.get("view") === "siem-integration" ? "siem-integration" : "traffic-flow";
+let page = query.get("view") === "siem-integration" ? "siem-integration" : "traffic-flow";
 document.body.classList.toggle("embedded", embedded);
 document.body.dataset.view = page;
 $("traffic-view").hidden = page !== "traffic-flow";
@@ -652,22 +652,59 @@ async function refreshSiem() {
     "" : "Check permissions of the ShiroBird SIEM export directory.";
   status("Exporter status", true);
 }
+let firstPaintNotified = false;
+let currentLoad = 0;
+function notifyParentReady() {
+  if (!embedded || firstPaintNotified) return;
+  // The deferred script starts after HTML is parsed and CSS has loaded.
+  // A message after initialization is sufficient: the parent keeps the iframe
+  // display:none until it receives this explicit first-paint handshake.
+  firstPaintNotified = true;
+  window.parent.postMessage({source: "shirobird-ready", view: page}, location.origin);
+}
 async function start() {
+  const loadingPage = page;
+  const generation = ++currentLoad;
   try {
-    if (page === "siem-integration") await refreshSiem();
+    if (loadingPage === "siem-integration") await refreshSiem();
     else {
       await Promise.all([refreshFlows(), refreshAnalytics(), refreshNative()]);
-      connectFlows();
+      if (page === loadingPage) connectFlows();
     }
-    $("auth").classList.add("hidden");
+    if (generation === currentLoad) {
+      $("auth").hidden = true;
+      $("auth").classList.add("hidden");
+    }
   } catch (error) {
-    if (error.message !== "Authentication required") {
-      status("Unavailable");
-      if (page === "siem-integration") $("siem-error").textContent = error.message;
+    if (generation === currentLoad) {
+      if (error.message !== "Authentication required") {
+        status("Unavailable");
+        if (page === "siem-integration") $("siem-error").textContent = error.message;
+      }
+      showLogin();
     }
-    showLogin();
+  } finally {
+    notifyParentReady();
   }
 }
+function switchEmbeddedView(nextPage) {
+  if (!embedded || !["traffic-flow", "siem-integration"].includes(nextPage) ||
+      nextPage === page) return;
+  page = nextPage;
+  document.body.dataset.view = page;
+  $("traffic-view").hidden = page !== "traffic-flow";
+  $("siem-view").hidden = page !== "siem-integration";
+  if (stream) stream.close();
+  stream = null;
+  // Reuse the existing document, styles and SSO cookie, without any navigation.
+  void start();
+}
+window.addEventListener("message", event => {
+  if (!embedded || event.origin !== location.origin ||
+      event.source !== window.parent || !event.data ||
+      event.data.source !== "shirobird-navigate") return;
+  switchEmbeddedView(event.data.view);
+});
 $("form").addEventListener("submit", async event => {
   event.preventDefault();
   $("error").textContent = "";
