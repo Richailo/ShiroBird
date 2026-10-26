@@ -20,6 +20,7 @@ jobs:
       - run: node integration/test-sidebar.cjs
       - run: node integration/test-layout.cjs
       - run: node integration/test-theme.cjs
+      - run: node integration/test-traffic-ui.cjs
       - run: docker build -t shirobird:test .
       - name: Dashboard bridge integration smoke test
         run: |
