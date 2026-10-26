@@ -66,7 +66,7 @@ assert.match(directions.children[0].children[0].attributes["aria-label"],/Receiv
 assert.match(directions.children[1].children[0].attributes["aria-label"],/Sent/);
 assert.equal(helper.nativeSeverity(row),"started");
 assert.match(helper.nativeEventDescription(row),/requested/);
-assert.match(treeText(helper.nativeEventCell(row)),/Reported by WINN-10/);
+assert.match(treeText(helper.nativeEventCell(row)),/Connection requested by peer/);
 assert.equal(helper.nativeSeverity({...row,num_of_drops:4}),"mixed");
 assert.match(helper.nativeEventDescription({...row,num_of_drops:4}),/blocked attempts/);
 assert.equal(helper.nativeSeverity({...row,num_of_starts:0,num_of_drops:4}),"blocked");
