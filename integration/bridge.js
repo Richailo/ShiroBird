@@ -14,6 +14,7 @@
   let expanded = location.hash.startsWith(ROOT);
   let lastAuth = 0;
   let peerDirectory = [];
+  let userDirectory = [];
   let routeDirectory = {policies:[], routes:[], networks:[], complete:false};
   let directoryFetchedAt = 0;
   let directoryPromise = null;
@@ -228,7 +229,7 @@
     const frame = document.querySelector("#" + VIEW_ID + " iframe");
     if (!frame || !frame.contentWindow) return;
     frame.contentWindow.postMessage({
-      source: "shirobird-peer-directory", peers: peerDirectory
+      source: "shirobird-peer-directory", peers: peerDirectory, users: userDirectory
     }, location.origin);
     frame.contentWindow.postMessage({
       source: "shirobird-policy-directory", directory: routeDirectory
@@ -251,8 +252,9 @@
       return response.json();
     };
     directoryPromise = (async () => {
-      const [peers, policies, routes, networks] = await Promise.allSettled([
-        get("/api/peers"), get("/api/policies"), get("/api/routes"), get("/api/networks")
+      const [peers, policies, routes, networks, users] = await Promise.allSettled([
+        get("/api/peers"), get("/api/policies"), get("/api/routes"), get("/api/networks"),
+        get("/api/users")
       ]);
       const list = result => result.status === "fulfilled" && Array.isArray(result.value)
         ? result.value : null;
@@ -265,9 +267,15 @@
           ip:String(p.ip||"").slice(0,64),
           ipv6:String(p.ipv6||"").slice(0,64),
           connected:Boolean(p.connected),
+          user_id:String(p.user_id||"").slice(0,128),
           os:(typeof p.os==="string" ? p.os :
               typeof p.os?.name==="string" ? p.os.name : "").slice(0,80)
         }));
+      const userRows = list(users);
+      if (userRows) userDirectory=userRows.slice(0,1000)
+        .filter(u=>u && typeof u==="object" && u.is_service_user!==true)
+        .map(u=>({id:String(u.id||"").slice(0,128),
+                  name:String(u.name||u.email||u.id||"").slice(0,128)}));
       const policyRows = list(policies);
       const routeRows = list(routes);
       const networkRows = list(networks);
@@ -424,6 +432,19 @@
   }
   // App-ready is sent by the same-origin embedded ShiroBird document AFTER
   // its first render, so a white iframe never appears while it is loading.
+  // The embedded Event Streaming card opens the native NetBird-styled
+  // ShiroBird SIEM tab without iframe reload or additional authentication.
+  window.addEventListener("message", event => {
+    const panel=document.getElementById(VIEW_ID);
+    const frame=panel && panel.querySelector("iframe");
+    if (!frame || event.origin!==location.origin ||
+        event.source!==frame.contentWindow ||
+        event.data?.source!=="shirobird-request-tab") return;
+    const wanted=event.data.view;
+    if (!ITEMS.some(item=>item.slug===wanted)) return;
+    expanded=true;
+    location.hash=ROOT+wanted;
+  });
   window.addEventListener("message", event => {
     const panel = document.getElementById(VIEW_ID);
     const frame = panel && panel.querySelector("iframe");
