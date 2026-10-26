@@ -110,6 +110,21 @@ const ambiguous=helper.resolveNativeRouter({...routed,reporter_id:"client"});
 assert.equal(ambiguous.state,"ambiguous");
 assert.equal(ambiguous.peerId,undefined);
 assert.equal(helper.resolveNativeRouter({...routed,reporter_id:"peer1"}).peerId,"peer1");
+// Real NetBird FlowService sends ASCII resource IDs encoded as bytes, while
+// the Networks API exposes their plain identifiers.
+helper.setDirectory({complete:true,policies:[],routes:[],
+  networks:[{id:"network1",name:"Office",routerPeers:["peer1"],routerGroups:[],
+    resources:[{id:"resource-14",name:"Office LAN",address:"192.168.0.0/24"}]}]});
+const routedResource={...row,reporter_id:"client",
+  destination_resource_id:hex("resource-14")};
+assert.equal(helper.resolveNativeRouter(routedResource).peerId,"peer1");
+assert.equal(helper.resolveNativeRouter(routedResource).resourceName,"Office LAN");
+assert.equal(helper.resolveNativePolicy(routedResource).state,"missing");
+helper.setDirectory({complete:true,policies:[],routes:[],
+  networks:[{id:"network1",routerPeers:["peer1"],routerGroups:["dynamic-group"],
+    resources:[{id:"resource-14"}]}]});
+assert.equal(helper.resolveNativeRouter(routedResource).state,"ambiguous",
+  "Dynamic peer groups cannot be treated as unique routers");
 
 assert.ok(html.includes('data-native-sort="ts"'),"sortable native time header");
 assert.ok(html.includes('data-native-sort="src"'),"sortable source header");
