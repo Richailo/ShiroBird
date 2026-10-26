@@ -2,7 +2,7 @@
 import json
 import os
 from pathlib import Path
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit, urlencode
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
@@ -17,6 +17,7 @@ def snapshot(after=0, limit=200, filters=None, query=None):
     if not url:
         return {"configured": False, "available": False, "flows": [],
                 "note": "Native peer reporting is not configured; central observation remains separate."}
+    status = None
     try:
         parts = urlsplit(url)
         if (parts.scheme not in ("http", "https") or not parts.hostname or
@@ -66,6 +67,18 @@ def snapshot(after=0, limit=200, filters=None, query=None):
                 "total": page.get("total", len(page["flows"])),
                 "note": "Peer-reported native flows; reporter perspectives are not deduplicated across peers. "
                         "Do not add native counters to central conntrack totals."}
+    except HTTPError as error:
+        # An invalid query is NOT an offline receiver, and a previous
+        # successful status response is useful for dashboard diagnostics.
+        code = int(error.code)
+        note = ("Native receiver rejected traffic filters (HTTP 400)."
+                if code == 400 else
+                "Native receiver rejected its service credential (HTTP %d)." % code
+                if code in (401, 403) else
+                "Native receiver returned an HTTP %d error." % code)
+        return {"configured": True, "available": False,
+                "receiver_online": status is not None,
+                "status": status, "flows": [], "note": note}
     except (OSError, URLError, ValueError, KeyError, TypeError):
         return {"configured": True, "available": False, "flows": [],
-                "note": "Native receiver unavailable. Check its service and server-side credentials."}
+                "note": "Native receiver connection or response unavailable. Check server logs."}
