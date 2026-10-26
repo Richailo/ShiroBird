@@ -28,6 +28,29 @@
           <a href="api/export.ndjson" class="button secondary">Export JSONL</a>
         </div>
       </div>
+      <div class="traffic-stat-head">
+        <h2>Native NetBird traffic</h2>
+        <span id="native-summary-status" role="status" aria-live="polite">Checking receiver…</span>
+      </div>
+      <section class="stats native-overview" aria-label="Native NetBird events summary">
+        <article><span>Total native reports</span><strong id="native-stat-total">—</strong></article>
+        <article><span>Received in last 24 h</span><strong id="native-stat-day">—</strong></article>
+        <article><span>Reporting peers</span><strong id="native-stat-peers">—</strong></article>
+        <article><span>Reports with drops</span><strong id="native-stat-drops">—</strong></article>
+        <article><span>Last native report</span><strong id="native-stat-last">—</strong></article>
+      </section>
+      <div class="traffic-stat-head local">
+        <h2>Local monitoring <small>· separate from native NetBird events</small></h2>
+      </div>
+      <section class="stats local-sensor-stats" aria-label="Local conntrack and Windows WFP metrics">
+        <article><span>Observed starts</span><strong id="flow-starts">—</strong></article>
+        <article><span>Observed ends</span><strong id="flow-ends">—</strong></article>
+        <article><span>Completed-session bytes</span><strong id="flow-bytes">—</strong></article>
+        <article><span>Reporting sensors</span><strong id="flow-sensors">—</strong></article>
+        <article><span>Windows WFP allowed</span><strong id="flow-allowed">—</strong></article>
+        <article><span>Windows WFP blocked connections</span><strong id="flow-blocked">—</strong></article>
+        <article><span>Windows WFP dropped packets</span><strong id="flow-dropped">—</strong></article>
+      </section>
       <section class="panel native-events-panel" aria-label="Native NetBird peer traffic reports">
         <div class="panelhead native-events-heading">
           <div><h2>Native peer reports · P2P and routed</h2>
@@ -191,15 +214,6 @@
           <p>No reporting sensors detected yet</p>
         </div>
       </section>
-      <section class="stats" aria-label="Flow analytics">
-        <article><span>Observed starts</span><strong id="flow-starts">—</strong></article>
-        <article><span>Observed ends</span><strong id="flow-ends">—</strong></article>
-        <article><span>Completed-session bytes</span><strong id="flow-bytes">—</strong></article>
-        <article><span>Reporting sensors</span><strong id="flow-sensors">—</strong></article>
-        <article><span>Windows WFP allowed</span><strong id="flow-allowed">—</strong></article>
-        <article><span>Windows WFP blocked connections</span><strong id="flow-blocked">—</strong></article>
-        <article><span>Windows WFP dropped packets</span><strong id="flow-dropped">—</strong></article>
-      </section>
       <div class="flow-analytics-grid">
         <section class="panel">
           <div class="panelhead"><div><h2>Activity over time</h2><p>Connection starts and ends in the selected period</p></div></div>
@@ -210,25 +224,7 @@
           <div class="flow-top" id="flow-top"></div>
         </section>
       </div>
-      <section class="panel flow-group-panel">
-        <div class="panelhead"><div><h2>Aggregated traffic flows</h2>
-          <p>Grouped by sensor, telemetry source, endpoints, application and WFP filter</p></div>
-          <span class="flow-caveat">Windows WFP verdicts are not automatically NetBird policy verdicts</span>
-        </div>
-        <div class="tablewrap">
-          <table>
-            <thead><tr><th>Last seen</th><th>Source peer / IP</th><th>Destination peer / IP</th>
-              <th>Port</th><th>Protocol</th><th>Sensor</th><th>Origin</th><th>Direction</th><th>App / WFP filter</th><th>Starts</th><th>Allowed</th><th>Blocked</th><th>Dropped</th><th>Ends</th><th>Bytes</th></tr></thead>
-            <tbody id="flow-groups"><tr><td colspan="15">No recorded flows</td></tr></tbody>
-          </table>
-        </div>
-      </section>
-      <section class="stats" aria-label="Traffic summary">
-        <article><span>Total events</span><strong id="total">—</strong></article>
-        <article><span>Last 24 hours</span><strong id="day">—</strong></article>
-        <article><span>Reporting sensors</span><strong id="sensors">—</strong></article>
-        <article><span>Last observed</span><strong id="latest">—</strong></article>
-      </section>
+
       <section class="panel">
         <div class="panelhead">
           <div><h2>Raw network events</h2><p>Linux conntrack observations and explicitly sourced Windows WFP firewall decisions</p></div>
