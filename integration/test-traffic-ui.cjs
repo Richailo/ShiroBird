@@ -28,7 +28,7 @@ const fmt=n=>Number(n||0).toLocaleString("en-US");
 const humanBytes=n=>n===0?"0 B":n<1024?n+" B":(n/1024).toFixed(1)+" KB";
 const helper=Function("document","peerByIP","peerById","fmt","humanBytes",
   source.slice(start,stop)+
-  "\nreturn {osKind,nativeIcon,nativePeer,nativeProtocol,nativeSeverity,nativeEventDescription,nativeEventCell,nativeTrafficCell,nativeRouterCell,resolveNativeRouter,resolveNativePolicy,nativeDetails,setDirectory:d=>{nativeDirectory=d}};")(
+  "\nreturn {osKind,nativeIcon,nativePeer,nativeProtocol,nativeSeverity,nativeEventDescription,nativeEventCell,nativeTrafficCell,nativeRouterCell,resolveNativeRouter,resolveNativePolicy,nativeInlineEvidence,nativeTimelineRows,nativeEventKey,nativeFlowIdentity,sameNativeConnection,nativeEventCell,setDirectory:d=>{nativeDirectory=d},setExpanded:k=>nativeExpanded.add(k),setCache:(k,v)=>nativeTimelineCache.set(k,v)}};")(
     document,peerByIP,peerById,fmt,humanBytes);
 const treeText=node=>[node.textContent||"",...node.children.map(treeText)].join(" ");
 assert.equal(helper.osKind("Windows 11"),"windows");
@@ -98,10 +98,37 @@ assert.equal(verified.state,"matched");
 assert.equal(verified.policyName,"SSH access");
 assert.equal(verified.ruleName,"TCP 22");
 assert.equal(verified.action,"accept");
-const details=helper.nativeDetails({...routed,rule_id:hex("rule1"),
-  flow_id:"flow123",event_id:"event123"});
-assert.match(treeText(details),/SSH access/);
-assert.match(treeText(details),/current NetBird configuration/);
+const evidence=helper.nativeInlineEvidence({...routed,rule_id:hex("rule1"),
+  flow_id:"abc123",event_id:"event123"});
+assert.match(treeText(evidence),/SSH access/);
+assert.match(treeText(evidence),/current NetBird configuration/);
+const selected={...routed,flow_id:"a".repeat(32),
+  event_id:"b".repeat(32),num_of_drops:0,num_of_ends:0};
+const prior={...selected,event_id:"c".repeat(32),num_of_starts:0,
+  num_of_ends:1,ts:selected.ts+60};
+const otherPeer={...selected,reporter_id:"peer-OTHER",
+  event_id:"d".repeat(32)};
+const otherAddress={...selected,dst:"10.0.0.200",
+  event_id:"e".repeat(32)};
+assert.equal(helper.sameNativeConnection(selected,prior),true);
+assert.equal(helper.sameNativeConnection(selected,otherPeer),false);
+assert.equal(helper.sameNativeConnection(selected,otherAddress),false);
+const identity=helper.nativeFlowIdentity(selected);
+assert.equal(identity,"peer1:"+selected.flow_id);
+helper.setCache(identity,{flows:[prior,otherPeer,selected,otherAddress],total:4});
+helper.setExpanded(helper.nativeEventKey(selected));
+const timeline=helper.nativeTimelineRows(selected);
+assert.equal(timeline.length,2,"timeline only contains confirmed same-flow reports");
+const cell=helper.nativeEventCell(selected);
+assert.match(treeText(cell),/Connection requested by peer/);
+assert.match(treeText(cell),/Connection stopped/);
+assert.match(treeText(cell),/Policy/);
+const toggles=cell.children[0].children.flatMap(item=>item.children[1]?.children[1]?.children||[])
+  .filter(item=>item.tagName==="button");
+assert.equal(toggles.length,1,"one inline chevron; no Details button");
+assert.equal(toggles[0].attributes["aria-expanded"],"true");
+assert.equal(helper.nativeFlowIdentity({...selected,flow_id:""}),"");
+assert.equal(helper.nativeFlowIdentity({...selected,reporter_id:""}),"");
 helper.setDirectory({complete:true,policies:[],routes:[
   {id:"route1",peer:"peer1",enabled:true,peer_groups:[]},
   {id:"route1",peer:"peer2",enabled:true,peer_groups:[]}
