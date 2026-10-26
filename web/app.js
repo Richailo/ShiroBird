@@ -106,35 +106,6 @@ function renderAnalytics() {
   if (!flowSnapshot || page !== "traffic-flow") return;
   const proto = $("flow-protocol").value;
   const filter = $("flow-search").value.trim().toLowerCase();
-  const rows = flowSnapshot.flows.filter(row => groupMatches(row, filter, proto));
-  const nodes = document.createDocumentFragment();
-  for (const item of rows) {
-    const tr = document.createElement("tr");
-    const values = [
-      date(item.last_seen), endpoint(item.src), endpoint(item.dst),
-      item.dport || "—", item.proto.toUpperCase(), item.sensor,
-      item.source === "windows_wfp" ? "Windows WFP" : "Linux conntrack",
-      item.direction || "unknown",
-      [item.application, item.filter_id ? "filter #" + item.filter_id : ""].filter(Boolean).join(" · ") || "—",
-      fmt(item.starts), fmt(item.allows || 0), fmt(item.blocks || 0),
-      fmt(item.drops || 0), fmt(item.ends), humanBytes(item.bytes)
-    ];
-    for (const [i,value] of values.entries()) {
-      const td = document.createElement("td");
-      if (i === 1) td.append(nativePeer(item.src));
-      else if (i === 2) td.append(nativePeer(item.dst, item.dport));
-      else if (i === 4) {
-        const chip = document.createElement("span");
-        chip.className = "native-chip";
-        chip.textContent = String(value);
-        td.append(chip);
-      } else td.textContent = String(value);
-      tr.append(td);
-    }
-    nodes.append(tr);
-  }
-  if (!rows.length) nodes.append(makeEmptyRow(15, "No observed traffic for these filters"));
-  $("flow-groups").replaceChildren(nodes);
   const dest = document.createDocumentFragment();
   const filtered = flowSnapshot.destinations.filter(row => groupMatches({
     ...row, src: "", sensor: ""}, filter, proto));
@@ -675,6 +646,19 @@ function renderNativeFilterChips() {
   }
   target.hidden=!chips.length;
 }
+function renderNativeSummary(data) {
+  const keys=["total","received_24h","reporters","reports_with_drops"];
+  const targets=["native-stat-total","native-stat-day","native-stat-peers","native-stat-drops"];
+  const values=data.available && data.status && keys.every(
+    key => Number.isFinite(Number(data.status[key])));
+  for(let i=0;i<targets.length;i++)
+    $(targets[i]).textContent=values?fmt(Number(data.status[keys[i]])):"—";
+  const recent=values?Number(data.status.last_received||0):0;
+  $("native-stat-last").textContent=recent?date(recent):"—";
+  $("native-summary-status").textContent=data.available ?
+    "Receiver online · native reports, not conntrack sessions" :
+    "Native receiver unavailable — counts not confirmed";
+}
 function renderNativeStreamState(data) {
   const label=$("native-stream-status");
   const description=$("native-stream-description");
@@ -749,6 +733,7 @@ async function refreshNative(resetPage=false) {
     nativeRowsLoaded=Array.isArray(data.flows)?data.flows:[];
     nativeTotal=Number(data.total||0);
     renderNativeStreamState(data);
+    renderNativeSummary(data);
     renderNativeRows();
     renderNativePagination();
   } catch(error) {
@@ -757,6 +742,7 @@ async function refreshNative(resetPage=false) {
     nativeRowsLoaded=[];nativeTotal=0;
     renderNativeRows();renderNativePagination();
     renderNativeStreamState({available:false});
+    renderNativeSummary({available:false});
   } finally {
     if(version===nativeRequestVersion)$("native-refresh").disabled=false;
   }
@@ -947,13 +933,8 @@ function renderFlows() {
   $("flows").replaceChildren(fragment);
 }
 async function refreshFlows() {
-  const [stats, results] = await Promise.all([
-    req("api/stats"), req("api/flows?limit=200")
-  ]);
-  $("total").textContent = fmt(stats.total);
-  $("day").textContent = fmt(stats.last_24h);
-  $("sensors").textContent = fmt(stats.sensors);
-  $("latest").textContent = date(stats.latest);
+  // Legacy Linux/WFP collector events are independent of native peer reports.
+  const results = await req("api/flows?limit=200");
   flows = results.flows;
   lastId = flows.reduce((max, row) => Math.max(max, row.id), 0);
   renderFlows();
@@ -969,7 +950,6 @@ function connectFlows() {
     lastId = row.id;
     flows.unshift(row);
     flows = flows.slice(0, 200);
-    $("latest").textContent = date(row.ts);
     renderFlows();
   };
 }
