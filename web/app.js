@@ -593,14 +593,35 @@ function renderNativeRows() {
       [nativeTrafficCell(row),"native-traffic-cell"],
       [nativeRouterCell(row),"native-router-cell"]
     ];
-    for (const [value,className] of columns) {
+    const eventKey=String(row.reporter_id||"")+":"+String(row.event_id||row.id||row.flow_id||"");
+    for (const [i,entry] of columns.entries()) {
+      const [value,className]=entry;
       const td = document.createElement("td");
       td.className = className;
       if (typeof value === "string") td.textContent = value;
       else td.append(value);
+      if (i === 1) {
+        const toggle=document.createElement("button");
+        toggle.type="button";
+        toggle.className="native-event-expand";
+        toggle.dataset.eventKey=eventKey;
+        toggle.setAttribute("aria-label","Show event details and NetBird Policy");
+        toggle.setAttribute("aria-expanded",String(nativeExpanded.has(eventKey)));
+        toggle.textContent=nativeExpanded.has(eventKey) ? "▾ Details" : "▸ Details";
+        td.append(toggle);
+      }
       tr.append(td);
     }
     fragment.append(tr);
+    if(nativeExpanded.has(eventKey)) {
+      const detailsRow=document.createElement("tr");
+      detailsRow.className="native-expanded-row";
+      const cell=document.createElement("td");
+      cell.colSpan=7;
+      cell.append(nativeDetails(row));
+      detailsRow.append(cell);
+      fragment.append(detailsRow);
+    }
   }
   if (!rows.length) fragment.append(makeEmptyRow(7,
     nativeRowsLoaded.length ? "No events match this filter on the loaded page" :
@@ -633,6 +654,31 @@ async function refreshNative(next = false) {
 }
 $("native-next").addEventListener("click", () => refreshNative(true));
 $("native-search").addEventListener("input", renderNativeRows);
+$("native-rows").addEventListener("click", event => {
+  const toggle=event.target.closest?.("button[data-event-key]");
+  if (!toggle || !$("native-rows").contains(toggle)) return;
+  const key=toggle.dataset.eventKey;
+  if(nativeExpanded.has(key))nativeExpanded.delete(key);
+  else nativeExpanded.add(key);
+  renderNativeRows();
+  const replacement=Array.from($("native-rows").querySelectorAll("button[data-event-key]"))
+    .find(b=>b.dataset.eventKey===key);
+  replacement?.focus();
+});
+window.addEventListener("message", event => {
+  if(event.origin!==location.origin || event.source!==window.parent ||
+     event.data?.source!=="shirobird-policy-directory" ||
+     !event.data.directory || typeof event.data.directory!=="object")return;
+  const d=event.data.directory;
+  // Parent sends read-only, curated Management API metadata only.
+  nativeDirectory={
+    complete:d.complete===true,
+    policies:Array.isArray(d.policies)?d.policies.slice(0,1000):[],
+    routes:Array.isArray(d.routes)?d.routes.slice(0,1000):[],
+    networks:Array.isArray(d.networks)?d.networks.slice(0,40):[]
+  };
+  renderNativeRows();
+});
 document.querySelectorAll("[data-native-sort]").forEach(button =>
   button.addEventListener("click", () => {
     const next = button.dataset.nativeSort;
