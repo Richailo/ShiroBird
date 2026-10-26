@@ -12,7 +12,7 @@ class NoRedirect(HTTPRedirectHandler):
         return None
 
 
-def snapshot(after=0, limit=200, filters=None):
+def snapshot(after=0, limit=200, filters=None, query=None):
     url = os.getenv("SHIROBIRD_NATIVE_API_URL", "").rstrip("/")
     if not url:
         return {"configured": False, "available": False, "flows": [],
@@ -42,7 +42,15 @@ def snapshot(after=0, limit=200, filters=None):
                 return result
 
         status = get("/api/native/status")
-        if filters is not None:
+        if query is not None and filters is None:
+            # Legacy management-side filter API, keep older integrations
+            # compatible. Unknown fields (including supplied tokens) omitted.
+            options = {k: (v[0] if isinstance(v, (list,tuple)) and v else v)
+                       for k,v in query.items() if k in
+                       ("q","match","limit","from","to","protocol","direction","user_id",
+                        "reporter_id","source_id","destination_id","type","page")}
+            page=get("/api/native/flows?" + urlencode(options))
+        elif filters is not None:
             options = {k: v for k, v in filters.items() if k in
                        ("before", "limit", "start", "end", "q", "protocol",
                         "state", "reporters", "ips", "search_ips", "page", "sort", "order")}
@@ -52,7 +60,8 @@ def snapshot(after=0, limit=200, filters=None):
                        "&limit=" + str(min(1000, max(1, int(limit)))))
         return {"configured": True, "available": True, "status": status,
                 "flows": page["flows"], "next_cursor": page["next_cursor"],
-                "page": page.get("page",0), "has_more": page.get("has_more", False),
+                "page": page.get("page",0), "snapshot": page.get("snapshot"),
+                "has_more": page.get("has_more", False),
                 "total": page.get("total", len(page["flows"])),
                 "note": "Peer-reported native flows; reporter perspectives are not deduplicated across peers. "
                         "Do not add native counters to central conntrack totals."}
