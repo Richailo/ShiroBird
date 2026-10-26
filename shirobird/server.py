@@ -596,6 +596,16 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/api/stats":
             return self.reply(200, stats())
         if route == "/api/traffic/native":
+            # Use native receiver's full-database filtered query, never only
+            # filter a previously fetched browser page.
+            if qs.get("filtered", ["0"])[0] == "1":
+                filters = {k: qs.get(k, [""])[0] for k in
+                           ("before","limit","start","end","q","protocol",
+                            "state","reporters","ips")}
+                if any(len(v) > (1024 if k in ("reporters","ips") else 125)
+                       for k,v in filters.items()):
+                    return self.reply(400, {"error":"traffic filters too long"})
+                return self.reply(200, native_flow.snapshot(filters=filters))
             return self.reply(200, native_flow.snapshot(since, limit))
         if route == "/api/traffic/sensors":
             return self.reply(200, sensor_status())
