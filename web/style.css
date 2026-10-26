@@ -161,3 +161,90 @@ body.embedded .overlay[data-netbird="1"]::before{
 .flow-sensor small,.flow-sensor-hint{font-size:11px;color:var(--muted)}
 .flow-sensor-state{font-size:11px;color:#bf554a;font-weight:650}
 .flow-sensor-state.ready{color:#269469}
+
+/* Embedded NetBird layout: constrain all panels to the iframe's real viewport.
+   Large data tables scroll inside their cards, never expand the entire page. */
+html, body { max-width: 100%; overflow-x: hidden; }
+body.embedded { width: 100%; max-width: 100%; overflow-x: hidden; }
+body.embedded main {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding: 26px clamp(14px, 2.4vw, 30px) 40px;
+  overflow-x: clip;
+}
+body.embedded #traffic-view,
+body.embedded #siem-view {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+body.embedded .panel,
+body.embedded .hero,
+body.embedded .stats,
+body.embedded .flow-tools,
+body.embedded .flow-analytics-grid,
+body.embedded .siem-grid {
+  max-width: 100%;
+  min-width: 0;
+}
+body.embedded .hero > div,
+body.embedded .panelhead > div,
+body.embedded .flow-analytics-grid > .panel,
+body.embedded .siem-grid > .panel {
+  min-width: 0;
+}
+body.embedded .panel { overflow: hidden; }
+body.embedded .tablewrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+body.embedded .flow-caveat,
+body.embedded .panelhead p,
+body.embedded .hero p {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+body.embedded .stats {
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+}
+body.embedded .stats article {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+body.embedded .flow-tools {
+  align-items: end;
+  gap: 12px;
+}
+body.embedded .flow-tools label {
+  flex: 1 1 155px;
+  min-width: 0;
+}
+body.embedded .flow-tools input,
+body.embedded .flow-tools select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+body.embedded .flow-tools button {
+  flex: 0 0 auto;
+}
+@media (max-width: 750px) {
+  body.embedded .hero { flex-wrap: wrap; }
+  body.embedded .flow-tools { align-items: stretch; flex-direction: row; }
+  body.embedded .flow-tools label { flex: 1 1 min(100%, 185px); }
+  body.embedded .flow-tools button { flex: 1 1 100%; }
+  body.embedded .flow-analytics-grid { grid-template-columns: minmax(0, 1fr); }
+  body.embedded .panelhead { flex-wrap: wrap; }
+  body.embedded .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 420px) {
+  body.embedded .stats { grid-template-columns: minmax(0, 1fr); }
+  body.embedded main { padding-inline: 12px; }
+}
