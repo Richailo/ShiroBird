@@ -303,7 +303,7 @@ function nativeProtocol(row) {
   protoLabel.textContent = ({6:"TCP",17:"UDP",1:"ICMP",58:"ICMPv6",132:"SCTP"})[num] || ("IP "+num);
   proto.append(protoLabel);
   container.append(proto);
-  const port = num === 6 || num === 17 ? Number(row.dport) :
+  const port = num === 6 || num === 17 ? Number(row.grouped ? row.service_port : row.dport) :
     num === 1 || num === 58 ? null : 0;
   const meta = document.createElement("span");
   meta.className = "native-chip native-chip-port";
@@ -647,6 +647,13 @@ function resolveNativePolicy(row) {
       "Exact ID correlation with today's NetBird configuration; not a historical snapshot."};
 }
 function nativeRouterCell(row) {
+  if(row.grouped && Number(row.report_count)>1) {
+    const scope=document.createElement("span");
+    scope.className="native-unknown";
+    scope.textContent="Per report";
+    scope.title="This activity bucket contains independent flow IDs; routing may vary.";
+    return scope;
+  }
   const resolved=resolveNativeRouter(row);
   if (resolved.peerId) {
     const peer=peerById.get(resolved.peerId);
