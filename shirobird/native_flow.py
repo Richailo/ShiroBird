@@ -53,7 +53,8 @@ def snapshot(after=0, limit=200, filters=None, query=None):
         elif filters is not None:
             options = {k: v for k, v in filters.items() if k in
                        ("before", "limit", "start", "end", "q", "protocol",
-                        "state", "reporters", "ips", "search_ips", "page", "sort", "order")}
+                        "state", "reporters", "ips", "search_ips", "page", "sort", "order")
+                       and v is not None and str(v) != ""}
             page = get("/api/native/query?" + urlencode(options))
         else:
             page = get("/api/native/flows?after=" + str(max(0, int(after))) +
