@@ -160,7 +160,7 @@ class Store:
 
     def search_events(self, before=0, limit=100, start=0, end=0, query="",
                       protocol=0, state="", reporters=(), ips=(), search_ips=(),
-                      page=0, sort="time", order="desc"):
+                      page=0, sort="time", order="desc", flow_id=""):
         """Filtered, newest-first cursor pagination over the full durable store.
 
         Filtering is done in SQLite, not just over the browser's first page.
@@ -182,8 +182,13 @@ class Store:
             raise ValueError("invalid peer filter")
         if sort not in ("time","src","dst","event") or order not in ("asc","desc"):
             raise ValueError("invalid peer filter")
+        if flow_id and (len(flow_id)!=32 or any(c not in "0123456789abcdef" for c in flow_id)):
+            raise ValueError("invalid flow identifier")
         conditions = []
         args = []
+        if flow_id:
+            conditions.append("json_extract(payload,'$.flow_id') = ?")
+            args.append(flow_id)
         timestamp = "COALESCE(CAST(json_extract(payload,'$.window_end') AS INTEGER),CAST(json_extract(payload,'$.ts') AS INTEGER))"
         if start:
             conditions.append(timestamp + " >= ?")
@@ -365,7 +370,8 @@ def make_http_server(store, token, address=("127.0.0.1", 0)):
                         search_ips=tuple(x for x in params.get("search_ips",[""])[0].split(",") if x),
                         page=number_param("page"),
                         sort=params.get("sort",["time"])[0],
-                        order=params.get("order",["desc"])[0])
+                        order=params.get("order",["desc"])[0],
+                        flow_id=params.get("flow_id",[""])[0])
                     payload,code=result,200
                 except (ValueError, OverflowError):
                     payload,code={"error":"invalid traffic filters"},400
