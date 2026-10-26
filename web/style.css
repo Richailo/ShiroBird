@@ -376,3 +376,14 @@ body.embedded .siem-grid .panel, body.embedded .flow-analytics-grid .panel {
 }
 
 .native-event-mixed{background:#f5a623}
+
+/* Consistent OS and verdict glyphs across aggregate and raw tables. */
+.flow-group-panel td .native-peer,
+#flows .native-peer{max-width:250px}
+.flow-group-panel td .native-os-icon,
+#flows .native-os-icon{width:30px;height:30px;flex-basis:30px}
+.flow-group-panel td .native-peer-name,
+#flows .native-peer-name{max-width:200px}
+.native-event-inline{display:inline-flex;align-items:center;gap:8px;
+  font-weight:500;white-space:nowrap}
+.native-event-inline .native-event-dot{margin-top:0}
