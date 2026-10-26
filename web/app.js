@@ -406,19 +406,154 @@ function nativeTrafficCell(row) {
   box.title = "Transfer measured from the reporting peer's perspective";
   return box;
 }
-function nativeRouterCell(row) {
-  const routed = Boolean(row.source_resource_id || row.destination_resource_id);
-  const reporter = peerById.get(row.reporter_id);
-  // Routing peer verdicts are on the receiving peer. If the data doesn't
-  // identify a confirmed reporter, do not invent a router or resource label.
-  if (!routed || !reporter || Number(row.direction) !== 1) {
-    const empty = document.createElement("span");
-    empty.className = "native-unknown";
-    empty.textContent = "—";
-    return empty;
+// Only Management API configuration and explicit event IDs are used for
+// attribution. The current configuration is NOT a historical policy snapshot.
+let nativeDirectory = {policies:[],routes:[],networks:[],complete:false};
+let nativeExpanded = new Set();
+function eventRefCandidates(raw) {
+  if (typeof raw !== "string" || !raw || raw.length > 512) return [];
+  const ids = [raw];
+  if (/^(?:[0-9a-fA-F]{2})+$/.test(raw)) {
+    let decoded = "";
+    for (let i=0;i<raw.length;i+=2) {
+      const n=parseInt(raw.slice(i,i+2),16);
+      if (n < 33 || n > 126) { decoded=""; break; }
+      decoded+=String.fromCharCode(n);
+    }
+    if (decoded) ids.push(decoded);
   }
-  return nativePeer(reporter.ip || reporter.ipv6 || "",0);
+  return ids;
 }
+function matchingRef(raw, id) {
+  return typeof id === "string" && id.length>0 && eventRefCandidates(raw).includes(id);
+}
+function nativeResourceId(row) {
+  return row.destination_resource_id || row.source_resource_id || "";
+}
+function resolveNativeRouter(row) {
+  const ref=nativeResourceId(row);
+  if (!ref) return {state:"p2p", reason:"No routing resource ID in this event."};
+  const matchingRoutes = nativeDirectory.routes.filter(r=>r.enabled &&
+    (matchingRef(ref,r.id) || matchingRef(ref,r.network_id)));
+  const matchingNetworks = nativeDirectory.networks.filter(n=>
+    n.resources?.some(r=>matchingRef(ref,r.id)) || matchingRef(ref,n.id));
+  const known = new Set();
+  const labels=[];
+  let unresolvedGroup=false;
+  for (const route of matchingRoutes) {
+    if(route.peer)known.add(route.peer);
+    if(route.peer_groups?.length)unresolvedGroup=true;
+    labels.push(route.name || route.id);
+  }
+  for (const network of matchingNetworks) {
+    for (const peer of network.routerPeers||[]) known.add(peer);
+    if (network.routerGroups?.length) unresolvedGroup=true;
+    const resource=network.resources?.find(r=>matchingRef(ref,r.id));
+    labels.push(resource?.name || network.name || network.id);
+  }
+  const candidates=[...known];
+  if (!matchingRoutes.length && !matchingNetworks.length)
+    return {state:"unresolved",resourceId:ref,reason:
+      nativeDirectory.complete ? "No matching route/resource in current NetBird configuration." :
+      "Routing metadata not available or incomplete."};
+  if (candidates.includes(row.reporter_id)) return {
+    state:"confirmed",peerId:row.reporter_id,resourceId:ref,
+    resourceName:labels[0]||"",reason:"Reporting peer matches the configured router."
+  };
+  if (candidates.length===1 && !unresolvedGroup) return {
+    state:"configured",peerId:candidates[0],resourceId:ref,
+    resourceName:labels[0]||"",reason:"Single configured router for this resource (current configuration)."
+  };
+  return {state:"ambiguous",resourceId:ref,
+    resourceName:labels[0]||"",candidateIds:candidates,
+    reason:unresolvedGroup ? "A peer group may select a router; the chosen peer is not in this event." :
+      "Multiple router candidates exist for this resource."};
+}
+function resolveNativePolicy(row) {
+  const ref=row.rule_id;
+  if (!ref) return {state:"missing",reason:
+    "This native event contains no rule_id. An exact NetBird Policy cannot be determined."};
+  const matched=[];
+  for (const policy of nativeDirectory.policies) {
+    if (matchingRef(ref,policy.id)) matched.push({
+      policy,rule:null
+    });
+    for(const rule of policy.rules||[])
+      if(matchingRef(ref,rule.id))matched.push({policy,rule});
+  }
+  if(matched.length!==1)return {state:"unresolved",raw:ref,
+    reason: matched.length>1 ? "Multiple configuration entries match this ID." :
+      "No exact matching policy or rule in the current NetBird configuration."};
+  const {policy,rule}=matched[0];
+  return {state:"matched",raw:ref,policyName:policy.name,
+    policyId:policy.id,ruleName:rule?.name||"",ruleId:rule?.id||"",
+    action:rule?.action||"",reason:
+      "Exact ID correlation with today's NetBird configuration; not a historical snapshot."};
+}
+function nativeRouterCell(row) {
+  const resolved=resolveNativeRouter(row);
+  if (resolved.peerId) {
+    const peer=peerById.get(resolved.peerId);
+    if(peer?.ip || peer?.ipv6) {
+      const cell=nativePeer(peer.ip||peer.ipv6,0);
+      cell.title=resolved.reason;
+      if(resolved.state==="configured")cell.classList.add("native-router-config");
+      return cell;
+    }
+    const holder=document.createElement("span");
+    holder.className="native-router-id";
+    holder.textContent=peer?.name||resolved.peerId;
+    holder.title=resolved.reason;
+    return holder;
+  }
+  const empty=document.createElement("span");
+  empty.className="native-unknown";
+  empty.textContent=resolved.state==="ambiguous" ? "Multiple" : "—";
+  empty.title=resolved.reason;
+  return empty;
+}
+function nativeDetails(row) {
+  const router=resolveNativeRouter(row);
+  const policy=resolveNativePolicy(row);
+  const wrap=document.createElement("div");
+  wrap.className="native-details";
+  const header=document.createElement("strong");
+  header.textContent="Traffic event details";
+  wrap.append(header);
+  const grid=document.createElement("dl");
+  grid.className="native-details-grid";
+  const item=(label,value)=> {
+    const entry=document.createElement("div");
+    const dt=document.createElement("dt");dt.textContent=label;
+    const dd=document.createElement("dd");dd.textContent=String(value??"—");
+    entry.append(dt,dd);grid.append(entry);
+  };
+  const friendly=id=>eventRefCandidates(id).at(-1)||"—";
+  item("Reported by",peerById.get(row.reporter_id)?.name||row.reporter_id||"Unknown");
+  item("Flow direction",Number(row.direction)===1?"Incoming":Number(row.direction)===2?"Outgoing":"Unknown");
+  item("Router",router.peerId ?
+    (peerById.get(router.peerId)?.name||router.peerId) :
+    router.state==="p2p" ? "Not applicable (P2P)" :
+    router.state==="ambiguous" ? "Cannot identify uniquely" : "Not identified");
+  item("Router evidence",router.reason);
+  item("Network resource",router.resourceName||friendly(nativeResourceId(row)));
+  item("Policy",policy.state==="matched" ? policy.policyName||policy.policyId :
+    policy.state==="missing" ? "Not reported by this peer" : "Not identified");
+  item("Policy rule",policy.state==="matched" ? policy.ruleName||policy.ruleId||"Policy-level ID" : "—");
+  item("Policy action",policy.action||"Not available");
+  item("Policy evidence",policy.reason);
+  item("Raw rule ID",policy.raw||"Not supplied");
+  item("Flow ID",row.flow_id||"—");
+  item("Event ID",row.event_id||"—");
+  item("Event source",row.source||"netbird_native");
+  wrap.append(grid);
+  const caveat=document.createElement("p");
+  caveat.className="native-details-caveat";
+  caveat.textContent="The displayed router and policy names come from current NetBird configuration. The native event does not contain a historical configuration snapshot.";
+  wrap.append(caveat);
+  return wrap;
+}
+
 let nativeCursor = 0;
 let nativeRowsLoaded = [];
 let nativeSort = "ts";
