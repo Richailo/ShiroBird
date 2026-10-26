@@ -85,6 +85,12 @@ jobs:
         run: docker build -t shirobird-native-flow:test extensions/native-flow
       - name: Protocol, persistence, authentication and API tests
         run: docker run --rm --network none shirobird-native-flow:test python -m unittest -v
+      - name: Native compact SQL grouping in production read-only filesystem
+        run: |
+          docker run --rm --network none --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777 \
+            --tmpfs /data:rw,nosuid,nodev,size=64m,mode=1777 \
+            shirobird-native-flow:test python -m unittest -q
 
   management-adapter:
     runs-on: ubuntu-latest
