@@ -24,6 +24,7 @@ jobs:
       - run: node integration/test-no-white-flash.cjs
       - run: node integration/test-traffic-ui.cjs
       - run: node integration/test-toolbar.cjs
+      - run: node integration/test-netbird-dropdowns.cjs
       - run: node integration/test-dashboard-stats.cjs
       - run: docker build -t shirobird:test .
       - name: Dashboard bridge integration smoke test
