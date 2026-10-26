@@ -229,7 +229,7 @@ const nativeAssets = Object.freeze({
 function osKind(value) {
   const os = String(value || "").toLowerCase();
   if (/windows/.test(os)) return "windows";
-  if (/darwin|mac\\s?os|macos|os x/.test(os)) return "macos";
+  if (/darwin|mac\s?os|macos|os x/.test(os)) return "macos";
   if (/android/.test(os)) return "android";
   if (/ios|iphone|ipad/.test(os)) return "mobile";
   if (/linux|ubuntu|debian|fedora|centos|arch/.test(os)) return "linux";
