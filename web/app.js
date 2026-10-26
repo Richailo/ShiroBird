@@ -301,12 +301,15 @@ function nativeSeverity(row) {
   const drops = Number(row.num_of_drops || 0);
   const starts = Number(row.num_of_starts || 0);
   const ends = Number(row.num_of_ends || 0);
-  return drops > 0 ? "blocked" : starts > 0 ? "started" : ends > 0 ? "ended" : "unknown";
+  return drops > 0 && starts > 0 ? "mixed" :
+    drops > 0 ? "blocked" : starts > 0 ? "started" :
+    ends > 0 ? "ended" : "unknown";
 }
 function nativeEventDescription(row) {
   const reporter = peerById.get(row.reporter_id)?.name || row.reporter_id || "Peer";
   const severity = nativeSeverity(row);
   const direction = Number(row.direction);
+  if (severity === "mixed") return "Connection activity with blocked attempts";
   if (severity === "blocked") return "Connection blocked by reporting peer";
   if (severity === "started")
     return direction === 2 ? "Connection requested by peer" :
@@ -387,7 +390,7 @@ function renderNativeRows() {
   const order = nativeDescending ? -1 : 1;
   rows.sort((a,b)=>{
     if (nativeSort === "severity") {
-      const rating = {blocked:3,started:2,ended:1,unknown:0};
+      const rating = {blocked:4,mixed:3,started:2,ended:1,unknown:0};
       return order * (rating[nativeSeverity(a)]-rating[nativeSeverity(b)]);
     }
     if (nativeSort === "src" || nativeSort === "dst") {
