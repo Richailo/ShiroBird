@@ -207,6 +207,9 @@
     message.className = "shirobird-auth-message";
     message.setAttribute("role", "status");
     message.textContent = "Connecting with NetBird…";
+    // Keep the native NetBird-colored surface quiet while ShiroBird loads.
+    // Only show text if authentication actually fails.
+    message.hidden = true;
     const frame = document.createElement("iframe");
     frame.title = "ShiroBird";
     frame.referrerPolicy = "no-referrer";
@@ -381,7 +384,7 @@
         if (selectedPage()?.slug === "traffic-flow") void updatePeerDirectory(token);
         // The child iframe remains hidden until it reports ready; do not
         // reveal its initial about:blank/loading surface.
-        message.hidden = frameReady;
+        message.hidden = true;
         showPage();
       } catch (error) {
         frame.hidden = true;
