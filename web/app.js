@@ -556,35 +556,18 @@ function nativeDetails(row) {
   return wrap;
 }
 
-let nativeCursor = 0;
 let nativeRowsLoaded = [];
-let nativeSort = "ts";
+let nativePage = 0;
+let nativeTotal = 0;
+let nativeSort = "time";
 let nativeDescending = true;
+let nativeRequestVersion = 0;
+let nativeSearchTimer = null;
+let nativeUsers = [];
 function renderNativeRows() {
-  const filter = $("native-search").value.toLowerCase().trim();
-  const rows = nativeRowsLoaded.filter(row => {
-    if (!filter) return true;
-    const src = peerByIP.get(row.src)?.name || "";
-    const dst = peerByIP.get(row.dst)?.name || "";
-    const reporter = peerById.get(row.reporter_id)?.name || "";
-    return [row.src,row.dst,src,dst,reporter,row.sport,row.dport,
-      row.reporter_id,row.rule_id].some(x=>String(x||"").toLowerCase().includes(filter));
-  });
-  const order = nativeDescending ? -1 : 1;
-  rows.sort((a,b)=>{
-    if (nativeSort === "severity") {
-      const rating = {blocked:4,mixed:3,started:2,ended:1,unknown:0};
-      return order * (rating[nativeSeverity(a)]-rating[nativeSeverity(b)]);
-    }
-    if (nativeSort === "src" || nativeSort === "dst") {
-      const left = String(peerByIP.get(a[nativeSort])?.name || a[nativeSort] || "");
-      const right = String(peerByIP.get(b[nativeSort])?.name || b[nativeSort] || "");
-      return order * left.localeCompare(right);
-    }
-    return order * (Number(a.ts)-Number(b.ts));
-  });
+  // Already filtered, sorted and paginated in the receiver's durable SQLite.
   const fragment = document.createDocumentFragment();
-  for (const row of rows) {
+  for (const row of nativeRowsLoaded) {
     const tr = document.createElement("tr");
     tr.className = "native-row native-row-" + nativeSeverity(row);
     const columns = [
@@ -628,37 +611,213 @@ function renderNativeRows() {
       fragment.append(detailsRow);
     }
   }
-  if (!rows.length) fragment.append(makeEmptyRow(7,
-    nativeRowsLoaded.length ? "No events match this filter on the loaded page" :
-    "No native reports received yet. Events appear when NetBird peers report activity."));
+  if (!nativeRowsLoaded.length) fragment.append(makeEmptyRow(7,
+    "No recorded traffic events match the selected filters."));
   $("native-rows").replaceChildren(fragment);
   for (const btn of document.querySelectorAll("[data-native-sort]")) {
-    const active = btn.dataset.nativeSort === nativeSort;
+    const active = btn.dataset.nativeSort === nativeSort ||
+      (nativeSort === "time" && btn.dataset.nativeSort === "ts") ||
+      (nativeSort === "event" && btn.dataset.nativeSort === "severity");
     btn.setAttribute("aria-sort", active ?
       (nativeDescending ? "descending" : "ascending") : "none");
     const arrow = btn.querySelector(".native-sort-arrow");
     if (arrow) arrow.replaceChildren(tablerSortIcon(active ? nativeDescending : false));
   }
 }
-async function refreshNative(next = false) {
-  if (!next) nativeCursor = 0;
+function renderNativePagination() {
+  const size=Number($("native-page-size").value);
+  const first=nativeTotal ? nativePage*size+1 : 0;
+  const last=Math.min(nativeTotal,(nativePage+1)*size);
+  $("native-results-count").textContent=first+"–"+last+" of "+
+    nativeTotal.toLocaleString()+" events";
+  $("native-page-label").textContent="Page "+(nativePage+1);
+  $("native-prev").disabled=nativePage===0;
+  $("native-next").disabled=last>=nativeTotal;
+}
+function nativeTimeFilters() {
+  const value=$("native-range").value;
+  if (value !== "custom") return {start:value==="0"?0:Math.floor(Date.now()/1000)-Number(value),end:0};
+  const start=$("native-from").value ? Math.floor(new Date($("native-from").value).getTime()/1000) : 0;
+  const end=$("native-to").value ? Math.floor(new Date($("native-to").value).getTime()/1000) : 0;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || (start && end && start>end))
+    throw Error("Choose a valid date range");
+  return {start,end};
+}
+function nativeUserPeerFilter(id) {
+  if (!id) return null;
+  const list=[...peerById.entries()].filter(([,p])=>p.user_id===id).slice(0,50);
+  return {
+    reporters:list.map(([id])=>id),
+    ips:list.flatMap(([,p])=>[p.ip,p.ipv6]).filter(Boolean).slice(0,80)
+  };
+}
+function nativeNameIPs(search) {
+  if (!search) return [];
+  const needle=search.toLowerCase();
+  return [...peerByIP.entries()]
+    .filter(([,p])=>String(p.name||"").toLowerCase().includes(needle))
+    .map(([ip])=>ip).slice(0,60);
+}
+function renderNativeFilterChips() {
+  const target=$("native-active-filters");
+  const chips=[];
+  if ($("native-search").value.trim()) chips.push(["Search", $("native-search").value.trim()]);
+  if ($("native-range").value!=="172800") chips.push(["Time", $("native-range").selectedOptions[0].text]);
+  if ($("native-user").value) chips.push(["User", $("native-user").selectedOptions[0].text]);
+  if ($("native-protocol").value!=="0") chips.push(["Protocol", $("native-protocol").selectedOptions[0].text]);
+  if ($("native-event-type").value) chips.push(["Event", $("native-event-type").selectedOptions[0].text]);
+  target.replaceChildren();
+  for (const [label,content] of chips) {
+    const chip=document.createElement("span");
+    chip.className="native-filter-chip";
+    chip.textContent=label+": "+content;
+    target.append(chip);
+  }
+  target.hidden=!chips.length;
+}
+function renderNativeStreamState(data) {
+  const label=$("native-stream-status");
+  const description=$("native-stream-description");
+  label.classList.remove("receiving","offline");
+  if (!data.available) {
+    label.textContent="Offline";
+    label.classList.add("offline");
+    description.textContent="Native event receiver is unavailable";
+    return;
+  }
+  const last=Number(data.status?.last_received||0);
+  const recent=last>0 && (Date.now()/1000-last)<300;
+  label.textContent=recent?"Receiving":"Online";
+  if(recent) label.classList.add("receiving");
+  description.textContent=last ?
+    "Last event: "+new Date(last*1000).toLocaleString()+
+    " · "+Number(data.status?.total||0).toLocaleString()+" stored" :
+    "Receiver online · no native peer events recorded";
+}
+function populateNativeUsers() {
+  const dropdown=$("native-user");
+  const selected=dropdown.value;
+  dropdown.replaceChildren();
+  const all=document.createElement("option");
+  all.value="";all.textContent="All Users";dropdown.append(all);
+  const eligible=new Set([...peerById.values()].map(p=>p.user_id).filter(Boolean));
+  for(const user of nativeUsers) {
+    if(!eligible.has(user.id))continue;
+    const option=document.createElement("option");
+    option.value=user.id;
+    option.textContent=user.name||user.id;
+    dropdown.append(option);
+  }
+  dropdown.value=selected && dropdown.querySelector(
+    'option[value="'+CSS.escape(selected)+'"]') ? selected : "";
+}
+async function refreshNative(resetPage=false) {
+  if (resetPage) nativePage=0;
+  const version=++nativeRequestVersion;
+  const query=new URLSearchParams({filtered:"1",
+    page:String(nativePage),
+    limit:$("native-page-size").value,
+    sort:nativeSort,order:nativeDescending?"desc":"asc",
+    protocol:$("native-protocol").value,
+    state:$("native-event-type").value});
+  let userData;
   try {
-    const data = await req("api/traffic/native?limit=100&since=" + nativeCursor);
-    $("native-note").textContent = data.note || "Native receiver status unavailable.";
-    $("native-table").hidden = !data.available;
-    const returned = Array.isArray(data.flows) ? data.flows : [];
-    nativeRowsLoaded = returned;
-    $("native-next").hidden = !data.available || returned.length < 100 || !data.next_cursor;
-    nativeCursor = data.next_cursor || 0;
+    const time=nativeTimeFilters();
+    query.set("start",String(time.start));
+    query.set("end",String(time.end));
+    const search=$("native-search").value.trim().slice(0,120);
+    query.set("q",search);
+    if(search) query.set("search_ips",nativeNameIPs(search).join(","));
+    userData=nativeUserPeerFilter($("native-user").value);
+    if (userData) {
+      if (!userData.reporters.length) {
+        nativeRowsLoaded=[];nativeTotal=0;
+        renderNativeRows();renderNativePagination();
+        $("native-note").textContent="No peers belonging to this user are available.";
+        renderNativeFilterChips();
+        return;
+      }
+      query.set("reporters",userData.reporters.join(","));
+      query.set("ips",userData.ips.join(","));
+    }
+    renderNativeFilterChips();
+    $("native-refresh").disabled=true;
+    const data=await req("api/traffic/native?"+query.toString());
+    if (version!==nativeRequestVersion)return;
+    $("native-note").textContent=data.note||"Native peer event activity";
+    $("native-table").hidden=!data.available;
+    nativeRowsLoaded=Array.isArray(data.flows)?data.flows:[];
+    nativeTotal=Number(data.total||0);
+    renderNativeStreamState(data);
     renderNativeRows();
-  } catch (_) {
-    $("native-note").textContent = "Native reports unavailable";
-    $("native-table").hidden = true;
-    $("native-next").hidden = true;
+    renderNativePagination();
+  } catch(error) {
+    if(version!==nativeRequestVersion)return;
+    $("native-note").textContent="Unable to load traffic events: "+error.message;
+    nativeRowsLoaded=[];nativeTotal=0;
+    renderNativeRows();renderNativePagination();
+    renderNativeStreamState({available:false});
+  } finally {
+    if(version===nativeRequestVersion)$("native-refresh").disabled=false;
   }
 }
-$("native-next").addEventListener("click", () => refreshNative(true));
-$("native-search").addEventListener("input", renderNativeRows);
+function nativeRefilter() {return refreshNative(true);}
+let nativeSearchDelay=null;
+$("native-search").addEventListener("input",()=>{
+  clearTimeout(nativeSearchDelay);
+  nativeSearchDelay=setTimeout(()=>{void nativeRefilter()},320);
+});
+$("native-range").addEventListener("change",()=>{
+  $("native-custom-dates").hidden=$("native-range").value!=="custom";
+  void nativeRefilter();
+});
+for(const id of ["native-user","native-protocol","native-event-type","native-page-size",
+                  "native-from","native-to"]) {
+  $(id).addEventListener("change",()=>{void nativeRefilter()});
+}
+$("native-prev").addEventListener("click",()=>{
+  if(nativePage>0){nativePage--;void refreshNative();}
+});
+$("native-next").addEventListener("click",()=>{
+  if((nativePage+1)*Number($("native-page-size").value)<nativeTotal){
+    nativePage++;void refreshNative();
+  }
+});
+$("native-refresh").addEventListener("click",()=>void refreshNative());
+$("native-clear").addEventListener("click",()=>{
+  $("native-search").value="";
+  $("native-range").value="172800";
+  $("native-user").value="";
+  $("native-protocol").value="0";
+  $("native-event-type").value="";
+  $("native-page-size").value="100";
+  $("native-from").value="";$("native-to").value="";
+  $("native-custom-dates").hidden=true;
+  $("native-advanced").hidden=true;
+  $("native-filter-toggle").setAttribute("aria-expanded","false");
+  void nativeRefilter();
+});
+$("native-filter-toggle").addEventListener("click",()=>{
+  const hidden=!$("native-advanced").hidden;
+  $("native-advanced").hidden=hidden;
+  $("native-filter-toggle").setAttribute("aria-expanded",String(!hidden));
+});
+document.addEventListener("keydown",event=>{
+  if ((event.ctrlKey||event.metaKey) && event.key.toLowerCase()==="k" &&
+      page==="traffic-flow") {
+    event.preventDefault();
+    $("native-search").focus();
+  }
+  if(event.key==="Escape" && !$("native-advanced").hidden) {
+    $("native-advanced").hidden=true;
+    $("native-filter-toggle").setAttribute("aria-expanded","false");
+  }
+});
+$("native-stream-card").addEventListener("click",()=>{
+  if(embedded)window.parent.postMessage(
+    {source:"shirobird-request-tab",view:"siem-integration"},location.origin);
+  else window.location.search="?view=siem-integration";
+});
 $("native-rows").addEventListener("click", event => {
   const toggle=event.target.closest?.("button[data-event-key]");
   if (!toggle || !$("native-rows").contains(toggle)) return;
@@ -686,10 +845,11 @@ window.addEventListener("message", event => {
 });
 document.querySelectorAll("[data-native-sort]").forEach(button =>
   button.addEventListener("click", () => {
-    const next = button.dataset.nativeSort;
-    if (nativeSort === next) nativeDescending = !nativeDescending;
-    else { nativeSort = next; nativeDescending = true; }
-    renderNativeRows();
+    const key=button.dataset.nativeSort;
+    const next=key==="ts"?"time":key==="severity"?"event":key;
+    if(nativeSort===next)nativeDescending=!nativeDescending;
+    else{nativeSort=next;nativeDescending=true;}
+    void nativeRefilter();
   }));
 async function refreshAnalytics() {
   const windowMinutes = Number($("flow-window").value);
@@ -716,6 +876,8 @@ window.addEventListener("message", event => {
     return;
   peerByIP = new Map();
   peerById = new Map();
+  nativeUsers=Array.isArray(event.data.users) ?
+    event.data.users.filter(u=>u && typeof u.id==="string" && typeof u.name==="string").slice(0,1000) : [];
   for (const peer of event.data.peers.slice(0, 5000)) {
     if (!peer || typeof peer !== "object" || typeof peer.name !== "string") continue;
     for (const ip of [peer.ip, peer.ipv6]) {
@@ -726,11 +888,12 @@ window.addEventListener("message", event => {
   }
   for (const peer of event.data.peers.slice(0,5000)) {
     if (typeof peer?.id === "string" && typeof peer.name === "string")
-      peerById.set(peer.id, {name:peer.name,ip:peer.ip,ipv6:peer.ipv6,os:peer.os});
+      peerById.set(peer.id, {name:peer.name,ip:peer.ip,ipv6:peer.ipv6,os:peer.os,user_id:peer.user_id});
   }
+  populateNativeUsers();
   renderAnalytics();
   renderFlows();
-  renderNativeRows();
+  if(page==="traffic-flow")void nativeRefilter();
 });
 function renderFlows() {
   const filter = $("filter").value.toLowerCase();
