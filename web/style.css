@@ -529,3 +529,10 @@ body.embedded .siem-grid .panel, body.embedded .flow-analytics-grid .panel {
   .native-toolbar select{flex:1;max-width:none}
   .native-pagination{padding-inline:12px}
 }
+
+/* Popover escapes the embedded card; the table retains its own scroll box. */
+body.embedded .panel.native-events-panel{overflow:visible}
+body.embedded .panel.native-events-panel .tablewrap{
+  overflow-x:auto;overflow-y:auto;max-width:100%}
+.native-events-panel .native-advanced{z-index:90}
+.native-filter-wrapper:has(.native-advanced:not([hidden])){z-index:91}
