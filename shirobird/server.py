@@ -569,6 +569,16 @@ class Handler(BaseHTTPRequestHandler):
         route = self.route()
         if route == "/healthz":
             return self.reply(200, {"status": "ok", "version": "0.1.0"})
+        # Only the explicitly bundled, static NetBird-compatible SVG symbols.
+        # No client-provided filesystem paths are ever interpolated here.
+        icons = frozenset(("windows", "macos", "linux", "android", "ios",
+                           "globe", "monitor", "network", "route", "share"))
+        if route.startswith("/icons/") and route.endswith(".svg"):
+            name = route[len("/icons/"):-len(".svg")]
+            if name not in icons:
+                return self.reply(404, {"error": "icon not found"})
+            return self.reply(200, (ROOT / "web" / "icons" / (name + ".svg")).read_bytes(),
+                              "image/svg+xml; charset=utf-8")
         if route in ("/", "/app.js", "/style.css"):
             names = {"/": ("index.html", "text/html; charset=utf-8"),
                      "/app.js": ("app.js", "application/javascript; charset=utf-8"),
