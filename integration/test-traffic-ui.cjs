@@ -28,7 +28,7 @@ const fmt=n=>Number(n||0).toLocaleString("en-US");
 const humanBytes=n=>n===0?"0 B":n<1024?n+" B":(n/1024).toFixed(1)+" KB";
 const helper=Function("document","peerByIP","peerById","fmt","humanBytes",
   source.slice(start,stop)+
-  "\nreturn {osKind,nativeIcon,nativePeer,nativeProtocol,nativeSeverity,nativeEventDescription,nativeEventCell,nativeTrafficCell,nativeRouterCell};")(
+  "\nreturn {osKind,nativeIcon,nativePeer,nativeProtocol,nativeSeverity,nativeEventDescription,nativeEventCell,nativeTrafficCell,nativeRouterCell,resolveNativeRouter,resolveNativePolicy,nativeDetails,setDirectory:d=>{nativeDirectory=d}};")(
     document,peerByIP,peerById,fmt,humanBytes);
 const treeText=node=>[node.textContent||"",...node.children.map(treeText)].join(" ");
 assert.equal(helper.osKind("Windows 11"),"windows");
@@ -79,9 +79,38 @@ assert.equal(treeText(helper.nativeRouterCell(row)).trim(),"—",
 assert.equal(treeText(helper.nativeRouterCell({
   ...row,destination_resource_id:"abcd",direction:2})).trim(),"—",
   "Initiating peer must not be labeled a routing peer");
-assert.match(treeText(helper.nativeRouterCell({
-  ...row,destination_resource_id:"abcd",direction:1})),/WINN-10/,
-  "Identified inbound reporter may be the routing peer");
+assert.equal(treeText(helper.nativeRouterCell({
+  ...row,destination_resource_id:"abcd",direction:1})).trim(),"—",
+  "A reporting peer alone is not verified as a router");
+const hex=s=>Buffer.from(s).toString("hex");
+helper.setDirectory({complete:true,policies:[
+  {id:"policy1",name:"SSH access",rules:[{id:"rule1",name:"TCP 22",action:"accept"}]}
+],routes:[{id:"route1",network_id:"Group 1",name:"LAN1",
+           peer:"peer1",enabled:true,peer_groups:[]}],networks:[]});
+const routed={...row,destination_resource_id:hex("route1"),direction:2};
+assert.equal(helper.resolveNativeRouter(routed).peerId,"peer1",
+  "Routing is recovered from configuration for outgoing reporter too");
+assert.match(treeText(helper.nativeRouterCell(routed)),/WINN-10/);
+assert.equal(helper.resolveNativePolicy({...routed,rule_id:""}).state,"missing",
+  "No policy is invented when NetBird omitted rule_id");
+const verified=helper.resolveNativePolicy({...routed,rule_id:hex("rule1")});
+assert.equal(verified.state,"matched");
+assert.equal(verified.policyName,"SSH access");
+assert.equal(verified.ruleName,"TCP 22");
+assert.equal(verified.action,"accept");
+const details=helper.nativeDetails({...routed,rule_id:hex("rule1"),
+  flow_id:"flow123",event_id:"event123"});
+assert.match(treeText(details),/SSH access/);
+assert.match(treeText(details),/Current NetBird configuration/);
+helper.setDirectory({complete:true,policies:[],routes:[
+  {id:"route1",peer:"peer1",enabled:true,peer_groups:[]},
+  {id:"route1",peer:"peer2",enabled:true,peer_groups:[]}
+],networks:[]});
+const ambiguous=helper.resolveNativeRouter({...routed,reporter_id:"client"});
+assert.equal(ambiguous.state,"ambiguous");
+assert.equal(ambiguous.peerId,undefined);
+assert.equal(helper.resolveNativeRouter({...routed,reporter_id:"peer1"}).peerId,"peer1");
+
 assert.ok(html.includes('data-native-sort="ts"'),"sortable native time header");
 assert.ok(html.includes('data-native-sort="src"'),"sortable source header");
 assert.ok(html.includes('data-native-sort="dst"'),"sortable destination header");
