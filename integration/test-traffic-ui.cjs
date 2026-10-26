@@ -26,10 +26,10 @@ const peerByIP=new Map([
 const peerById=new Map([["peer1",{name:"WINN-10",ip:"100.64.1.10",os:"Windows 11"}]]);
 const fmt=n=>Number(n||0).toLocaleString("en-US");
 const humanBytes=n=>n===0?"0 B":n<1024?n+" B":(n/1024).toFixed(1)+" KB";
-const helper=Function("document","peerByIP","peerById","fmt","humanBytes",
+const helper=Function("document","peerByIP","peerById","fmt","humanBytes","date",
   source.slice(start,stop)+
   "\nreturn {osKind,nativeIcon,nativePeer,nativeProtocol,nativeSeverity,nativeEventDescription,nativeEventCell,nativeTrafficCell,nativeRouterCell,resolveNativeRouter,resolveNativePolicy,nativeInlineEvidence,nativeTimelineRows,nativeEventKey,nativeFlowIdentity,sameNativeConnection,setDirectory:d=>{nativeDirectory=d},setExpanded:k=>nativeExpanded.add(k),setCache:(k,v)=>nativeTimelineCache.set(k,v)};")(
-    document,peerByIP,peerById,fmt,humanBytes);
+    document,peerByIP,peerById,fmt,humanBytes,n=>new Date(n*1000).toISOString());
 const treeText=node=>[node.textContent||"",...node.children.map(treeText)].join(" ");
 assert.equal(helper.osKind("Windows 11"),"windows");
 assert.equal(helper.osKind("Darwin"),"macos");
