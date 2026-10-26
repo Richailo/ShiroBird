@@ -160,7 +160,7 @@ class Store:
 
     def search_events(self, before=0, limit=100, start=0, end=0, query="",
                       protocol=0, state="", reporters=(), ips=(), search_ips=(),
-                      page=0, sort="time", order="desc", flow_id=""):
+                      page=0, sort="time", order="desc", flow_id="", compact=False, activity_key=""):
         """Filtered, newest-first cursor pagination over the full durable store.
 
         Filtering is done in SQLite, not just over the browser's first page.
@@ -184,6 +184,10 @@ class Store:
             raise ValueError("invalid peer filter")
         if flow_id and (len(flow_id)!=32 or any(c not in "0123456789abcdef" for c in flow_id)):
             raise ValueError("invalid flow identifier")
+        if compact and (flow_id or activity_key):
+            raise ValueError("compact view cannot be combined with flow detail")
+        if len(activity_key) > 512:
+            raise ValueError("invalid activity key")
         conditions = []
         args = []
         if flow_id:
@@ -236,7 +240,41 @@ class Store:
                 args.extend(search_ips)
                 args.extend(search_ips)
             conditions.append("(" + " OR ".join(search_parts) + ")")
+        # An activity key references one 5-minute *reporter/service* window.
+        # Grouping hides no events: members remain queryable individually.
+        source_ip = "json_extract(payload,'$.src')"
+        dest_ip = "json_extract(payload,'$.dst')"
+        source_port = "CAST(COALESCE(json_extract(payload,'$.sport'),0) AS INTEGER)"
+        dest_port = "CAST(COALESCE(json_extract(payload,'$.dport'),0) AS INTEGER)"
+        lower_ip = "(CASE WHEN " + source_ip + " <= " + dest_ip + " THEN " + source_ip + " ELSE " + dest_ip + " END)"
+        upper_ip = "(CASE WHEN " + source_ip + " <= " + dest_ip + " THEN " + dest_ip + " ELSE " + source_ip + " END)"
+        service_port = "(CASE WHEN " + source_port + " BETWEEN 1 AND 49151 AND (" + dest_port + " > 49151 OR " + source_port + " < " + dest_port + ") THEN " + source_port + " ELSE " + dest_port + " END)"
+        protocol_expr = "CAST(COALESCE(json_extract(payload,'$.protocol'),0) AS INTEGER)"
+        bucket = "CAST((" + timestamp + ") / 300 AS INTEGER)"
+        if activity_key:
+            import binascii
+            try:
+                decoded = base64.urlsafe_b64decode(activity_key + "=" * (-len(activity_key) % 4))
+                parts = json.loads(decoded)
+                if (not isinstance(parts,list) or len(parts)!=6 or
+                    not isinstance(parts[0],str) or len(parts[0])>128 or
+                    not all(isinstance(ip,str) and len(ip)<=45 for ip in parts[1:3]) or
+                    str(ipaddress.ip_address(parts[1]))!=parts[1] or
+                    str(ipaddress.ip_address(parts[2]))!=parts[2] or
+                    parts[1]>parts[2] or type(parts[3]) is not int or not 0<=parts[3]<=255 or
+                    type(parts[4]) is not int or not 0<=parts[4]<=65535 or
+                    type(parts[5]) is not int or not 0<=parts[5]<=9999999999):
+                    raise ValueError()
+            except (ValueError, TypeError, UnicodeDecodeError, binascii.Error):
+                raise ValueError("invalid activity key")
+            conditions += ["reporter = ?", lower_ip+" = ?",upper_ip+" = ?",
+                           protocol_expr+" = ?",service_port+" = ?",bucket+" = ?"]
+            args.extend(parts)
         where = " WHERE " + " AND ".join(conditions) if conditions else ""
+        if compact:
+            return self._compact_events(where, args, timestamp, lower_ip, upper_ip,
+                                        service_port, protocol_expr, bucket,
+                                        limit, page, sort, order)
         with closing(self.connect()) as db:
             total = db.execute("SELECT COUNT(*) FROM events" + where, args).fetchone()[0]
             cursor = (" WHERE id < ?" if not conditions else " AND id < ?") if before else ""
@@ -258,6 +296,60 @@ class Store:
         return {"flows":[{"id":r["id"],"received":r["received"],**json.loads(r["payload"])} for r in events],
                 "next_cursor":events[-1]["id"] if more and events else None,
                 "page":page,"has_more":more,"total":total}
+
+    def _compact_events(self, where, args, timestamp, lower_ip, upper_ip,
+                        service_port, protocol_expr, bucket, limit, page, sort, order):
+        """SQLite-native reporter/service grouping; raw event rows stay untouched."""
+        filtered = ("""WITH filtered AS (
+            SELECT id, reporter, payload, """ + lower_ip + """ AS addr_a,
+                """ + upper_ip + """ AS addr_b,
+                """ + service_port + """ AS svc_port,
+                """ + protocol_expr + """ AS proto,
+                """ + bucket + """ AS time_bucket,
+                """ + timestamp + """ AS stamp,
+                CAST(COALESCE(json_extract(payload,'$.num_of_starts'),0) AS INTEGER) AS starts,
+                CAST(COALESCE(json_extract(payload,'$.num_of_ends'),0) AS INTEGER) AS ends,
+                CAST(COALESCE(json_extract(payload,'$.num_of_drops'),0) AS INTEGER) AS drops,
+                CAST(COALESCE(json_extract(payload,'$.rx_bytes'),0) AS INTEGER) AS rx_bytes,
+                CAST(COALESCE(json_extract(payload,'$.tx_bytes'),0) AS INTEGER) AS tx_bytes
+            FROM events """ + where + """
+        ), grouped AS (
+            SELECT reporter,addr_a,addr_b,proto,svc_port,time_bucket,
+                COUNT(*) report_count,
+                COUNT(DISTINCT json_extract(payload,'$.flow_id')) flow_count,
+                MIN(stamp) first_time,MAX(stamp) last_time,MAX(id) last_id,
+                SUM(starts) starts,SUM(ends) ends,SUM(drops) drops,
+                SUM(rx_bytes) rx_bytes,SUM(tx_bytes) tx_bytes
+            FROM filtered
+            GROUP BY reporter,addr_a,addr_b,proto,svc_port,time_bucket
+        ) """)
+        sort_by = {"time":"last_time","src":"addr_a","dst":"addr_b",
+                   "event":"drops"}[sort]
+        with closing(self.connect()) as db:
+            total=db.execute(filtered+"SELECT COUNT(*) FROM grouped",args).fetchone()[0]
+            rows=db.execute(filtered+"""SELECT grouped.*,events.payload
+                FROM grouped JOIN events ON events.id=grouped.last_id
+                ORDER BY """+sort_by+(" ASC" if order=="asc" else " DESC")+
+                ",last_id DESC LIMIT ? OFFSET ?",args+[limit,page*limit]).fetchall()
+        result=[]
+        for row in rows:
+            data=json.loads(row["payload"])
+            key=[row["reporter"],row["addr_a"],row["addr_b"],
+                 row["proto"],row["svc_port"],row["time_bucket"]]
+            encoded=base64.urlsafe_b64encode(
+                json.dumps(key,separators=(",",":")).encode()).decode().rstrip("=")
+            data.update({
+                "id":row["last_id"],"grouped":True,"activity_key":encoded,
+                "report_count":row["report_count"],"flow_count":row["flow_count"],
+                "activity_start":row["first_time"],"activity_end":row["last_time"],
+                "num_of_starts":row["starts"],"num_of_ends":row["ends"],
+                "num_of_drops":row["drops"],"rx_bytes":row["rx_bytes"],
+                "tx_bytes":row["tx_bytes"]
+            })
+            result.append(data)
+        return {"flows":result,"page":page,"total":total,
+                "raw_total":None,"has_more":(page+1)*limit<total,
+                "next_cursor":None,"view":"compact"}
 
     def status(self):
         with closing(self.connect()) as db:
@@ -371,7 +463,9 @@ def make_http_server(store, token, address=("127.0.0.1", 0)):
                         page=number_param("page"),
                         sort=params.get("sort",["time"])[0],
                         order=params.get("order",["desc"])[0],
-                        flow_id=params.get("flow_id",[""])[0])
+                        flow_id=params.get("flow_id",[""])[0],
+                        compact=params.get("compact",["0"])[0]=="1",
+                        activity_key=params.get("activity_key",[""])[0])
                     payload,code=result,200
                 except (ValueError, OverflowError):
                     payload,code={"error":"invalid traffic filters"},400
