@@ -67,6 +67,16 @@ class ReceiverTests(unittest.TestCase):
         self.assertEqual(row["rule_id"], (b"r" * 16).hex())
         self.assertIsNotNone(row["window_start"])
 
+    def test_status_reports_native_event_counts_separately(self):
+        self.store.save(r.event_record(sample(), "peer-A"))
+        status=self.store.status()
+        self.assertEqual(status["total"],1)
+        self.assertEqual(status["reporters"],1)
+        self.assertEqual(status["received_24h"],1)
+        self.assertEqual(status["reports_with_drops"],1)
+        self.assertIsInstance(status["last_received"],int)
+        self.assertEqual(r.Store(self.folder.name).status()["total"],1)
+
     def test_retry_and_restart_are_idempotent(self):
         event = sample()
         for _ in range(2):
