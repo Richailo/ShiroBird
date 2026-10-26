@@ -42,6 +42,23 @@
     }
     return button && button.closest("aside,nav");
   }
+  // Matches NetBird SidebarItem's Lucide ChevronDownIcon (18px). A 180°
+  // rotation gives the same geometry as its ChevronUpIcon when expanded.
+  function chevronIcon() {
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    for (const [name, value] of Object.entries({
+      width: "18", height: "18", viewBox: "0 0 24 24",
+      fill: "none", stroke: "currentColor", "stroke-width": "2",
+      "stroke-linecap": "round", "stroke-linejoin": "round"
+    })) svg.setAttribute(name, value);
+    svg.setAttribute("class", "shirobird-chevron");
+    svg.setAttribute("aria-hidden", "true");
+    const path = document.createElementNS(ns, "path");
+    path.setAttribute("d", "m6 9 6 6 6-6");
+    svg.append(path);
+    return svg;
+  }
   function makeNativeButton(reference, label, child) {
     const li = document.createElement("li");
     li.className = "px-3 cursor-pointer list-none";
@@ -50,10 +67,23 @@
     button.className = reference.className;
     button.dataset.shirobirdTab = child ? "child" : "parent";
     button.setAttribute("aria-label", label);
-    if (child) button.classList.add("shirobird-child-button");
+    if (child) {
+      button.classList.add("shirobird-child-button");
+      // Like NetBird's DotIcon, only shown when collapsed and not hovered.
+      const dot = document.createElement("span");
+      dot.className = "shirobird-child-dot";
+      dot.setAttribute("aria-hidden", "true");
+      dot.textContent = "•";
+      button.append(dot);
+    }
     const inner = document.createElement("div");
-    inner.className = "flex w-full items-center shrink-0";
+    inner.className = "flex w-full items-center shrink-0 shirobird-item-inner";
     if (!child) {
+      // Native SidebarItem has the same invisible active-marker before its icon.
+      const marker = document.createElement("span");
+      marker.className = "peer/icon";
+      marker.dataset.active = "false";
+      inner.append(marker);
       const glyph = document.createElement("span");
       glyph.textContent = "◈";
       glyph.className = "shirobird-glyph";
@@ -61,19 +91,33 @@
       inner.append(glyph);
     }
     const text = document.createElement("span");
-    text.className = "px-3 whitespace-nowrap flex-1 w-full text-left";
+    text.className = "px-3 whitespace-nowrap flex-1 w-full text-left shirobird-label";
     text.textContent = label;
     inner.append(text);
-    if (!child) {
-      const chevron = document.createElement("span");
-      chevron.className = "shirobird-chevron";
-      chevron.setAttribute("aria-hidden", "true");
-      chevron.textContent = "⌄";
-      inner.append(chevron);
-    }
+    if (!child) inner.append(chevronIcon());
     button.append(inner);
     li.append(button);
     return {li, button};
+  }
+  // NetBird's Navigation uses md:w-[64px] and hover expands it back to 15rem.
+  // Observe that *native* class rather than guessing from viewport width;
+  // a collapsed sidebar can be temporarily wide while the pointer hovers.
+  let observedNativeNavigation = null;
+  const navigationObserver = new MutationObserver(() => reconcile());
+  function syncSidebarMode() {
+    const native = document.querySelector("[data-navigation]");
+    if (native !== observedNativeNavigation) {
+      navigationObserver.disconnect();
+      observedNativeNavigation = native;
+      if (native) navigationObserver.observe(native, {
+        attributes: true, attributeFilter: ["class", "style"]
+      });
+    }
+    const menu = document.getElementById(NAV_ID);
+    if (!menu) return;
+    const collapsed = native && window.innerWidth >= 768 &&
+      native.classList.contains("md:w-[64px]");
+    menu.classList.toggle("shirobird-compact", Boolean(collapsed));
   }
   function createNavigation(reference) {
     const original = reference.closest("[data-nav-item]") || reference.closest("li") || reference;
@@ -108,6 +152,7 @@
   function updateNavigation() {
     const nav = document.getElementById(NAV_ID);
     if (!nav) return;
+    syncSidebarMode();
     const page = selectedPage();
     nav.classList.toggle("shirobird-expanded", expanded);
     nav.classList.toggle("shirobird-active", Boolean(page));
