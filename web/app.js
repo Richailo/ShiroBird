@@ -854,7 +854,8 @@ function setNetbirdActiveOption(item,index,scroll=true) {
 function openNetbirdDropdown(item,startingKey=null) {
   if(netbirdOpenDropdown===item){closeNetbirdDropdown();return;}
   closeNetbirdDropdown();
-  closeNativeFilter(false);
+  // Inner Protocol and Event type menus belong to the open Filter panel.
+  if(!item.host.closest(".nb-filter-portal"))closeNativeFilter(false);
   buildNetbirdDropdownOptions(item);
   item.menu.hidden=false;
   item.trigger.setAttribute("aria-expanded","true");
@@ -1396,9 +1397,7 @@ function switchEmbeddedView(nextPage) {
   if (stream) stream.close();
   stream = null;
   // Reuse the existing document, styles and SSO cookie, without any navigation.
-  initializeNetbirdDropdowns();
-setupNativeFilterPortal();
-void start();
+  void start();
 }
 window.addEventListener("message", event => {
   if (!embedded || event.origin !== location.origin ||
@@ -1488,4 +1487,6 @@ $("copy-wazuh").addEventListener("click", async event => {
     $("siem-error").textContent = "Clipboard unavailable. Select and copy the configuration manually.";
   }
 });
+initializeNetbirdDropdowns();
+setupNativeFilterPortal();
 start();
