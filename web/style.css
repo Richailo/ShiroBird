@@ -536,3 +536,26 @@ body.embedded .panel.native-events-panel .tablewrap{
   overflow-x:auto;overflow-y:auto;max-width:100%}
 .native-events-panel .native-advanced{z-index:90}
 .native-filter-wrapper:has(.native-advanced:not([hidden])){z-index:91}
+
+/* Native traffic metrics are displayed first; never add local conntrack counts
+   to FlowService reporter-perspective events. */
+.traffic-stat-head{display:flex;flex-wrap:wrap;align-items:center;
+  justify-content:space-between;gap:9px;margin:12px 0 11px}
+.traffic-stat-head h2{margin:0;font-size:14px;font-weight:600;color:var(--text)}
+.traffic-stat-head small{color:var(--muted);font-size:12px;font-weight:400}
+.traffic-stat-head>span{font-size:11px;color:var(--muted)}
+.traffic-stat-head.local{margin-top:19px}
+.native-overview{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(165px,100%),1fr));gap:11px;margin:0 0 18px}
+.native-overview article{min-width:0;padding:15px 17px}
+.native-overview article strong{font-size:22px;line-height:1.25;white-space:normal;overflow-wrap:anywhere}
+.local-sensor-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr));gap:10px;margin-bottom:22px}
+.local-sensor-stats article{padding:12px 15px}
+.local-sensor-stats strong{font-size:19px;margin-top:7px}
+body.embedded .native-overview,body.embedded .local-sensor-stats{max-width:100%;min-width:0}
+@media(max-width:680px){
+ .native-overview{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .local-sensor-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:395px){
+ .native-overview,.local-sensor-stats{grid-template-columns:minmax(0,1fr)}
+}
