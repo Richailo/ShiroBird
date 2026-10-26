@@ -59,6 +59,9 @@
     );
     panel.style.left = geometry.left + "px";
     panel.style.top = geometry.top + "px";
+    // Explicit width is essential: an iframe's intrinsic min-content sizing
+    // otherwise makes this fixed flex container wider than the viewport.
+    panel.style.width = Math.max(0, window.innerWidth - geometry.left) + "px";
   }
   // Matches NetBird SidebarItem's Lucide ChevronDownIcon (18px). A 180°
   // rotation gives the same geometry as its ChevronUpIcon when expanded.
