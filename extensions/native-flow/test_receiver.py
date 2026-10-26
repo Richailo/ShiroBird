@@ -145,6 +145,69 @@ class ReceiverTests(unittest.TestCase):
         self.assertEqual(row["event_id"], event.event_id.hex())
         self.assertEqual(row["reporter_id"], "peer-A")
 
+    def test_database_wide_filters_and_pagination(self):
+        now = int(time.time())
+        for index in range(4):
+            event = sample()
+            event.event_id = bytes([65+index]) * 16
+            event.flow_fields.flow_id = bytes([70+index]) * 16
+            event.timestamp.seconds = now - (86400*index)
+            event.window_start.seconds = event.timestamp.seconds - 60
+            event.window_end.seconds = event.timestamp.seconds
+            event.flow_fields.dest_ip = ipaddress.ip_address(
+                "192.168.0." + str(10+index)).packed
+            event.flow_fields.port_info.dest_port = 443 if index%2==0 else 22
+            if index == 3:
+                event.flow_fields.num_of_drops = 2
+                event.flow_fields.num_of_starts = 0
+            self.store.save(r.event_record(event,"peer-A" if index%2==0 else "peer-B"))
+        rows = self.store.search_events(limit=25)
+        self.assertEqual(rows["total"],4)
+        self.assertEqual(rows["flows"][0]["dst"],"192.168.0.10")
+        self.assertEqual(self.store.search_events(limit=25,start=now-86400*2)["total"],3)
+        self.assertEqual(self.store.search_events(limit=25,query="192.168.0.12")["total"],1)
+        self.assertEqual(self.store.search_events(limit=25,query="443")["total"],2)
+        self.assertEqual(self.store.search_events(limit=25,query="peer-B")["total"],2)
+        self.assertEqual(self.store.search_events(limit=25,protocol=17)["total"],0)
+        self.assertEqual(self.store.search_events(limit=25,state="blocked")["total"],4)
+        self.assertEqual(self.store.search_events(limit=25,reporters=("peer-A",))["total"],2)
+        self.assertEqual(self.store.search_events(limit=25,ips=("192.168.0.11",))["total"],1)
+        self.assertEqual(self.store.search_events(limit=25,search_ips=("192.168.0.10",))["total"],1)
+        self.assertEqual(self.store.search_events(limit=25,query="not-in-db",
+                                                search_ips=("192.168.0.10",))["total"],1)
+        self.assertEqual(self.store.search_events(limit=25,sort="src",order="asc")["total"],4)
+        with self.assertRaises(ValueError):
+            self.store.search_events(limit=999)
+        with self.assertRaises(ValueError):
+            self.store.search_events(limit=25,sort="id desc;drop table events")
+        self.assertEqual(self.store.status()["total"],4)
+
+    def test_http_full_history_query_and_user_filter(self):
+        event=sample()
+        self.store.save(r.event_record(event,"peer-A"))
+        server=r.make_http_server(self.store,"test-"+"x"*40)
+        worker=threading.Thread(target=server.serve_forever,daemon=True)
+        worker.start()
+        url="http://127.0.0.1:"+str(server.server_port)
+        headers={"Authorization":"Bearer test-"+"x"*40}
+        try:
+            req=Request(url+"/api/native/query?limit=25&reporters=peer-A&sort=time",headers=headers)
+            with urlopen(req,timeout=5) as response:
+                obj=json.load(response)
+            self.assertEqual(obj["total"],1)
+            self.assertFalse(obj["has_more"])
+            self.assertEqual(len(obj["flows"]),1)
+            with self.assertRaises(HTTPError) as fail:
+                urlopen(Request(url+"/api/native/query?limit=999",headers=headers),timeout=5)
+            self.assertEqual(fail.exception.code,400)
+            with self.assertRaises(HTTPError) as fail:
+                urlopen(url+"/api/native/query?limit=25",timeout=5)
+            self.assertEqual(fail.exception.code,401)
+        finally:
+            server.shutdown()
+            server.server_close()
+            worker.join()
+
     def test_authenticated_api_and_pagination(self):
         self.store.save(r.event_record(sample(), "peer-A"))
         http = r.make_http_server(self.store, "api-token-" + "a" * 40)
