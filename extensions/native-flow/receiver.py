@@ -158,6 +158,80 @@ class Store:
                               (after, min(max(limit, 1), 1000))).fetchall()
         return [{"id": r["id"], "received": r["received"], **json.loads(r["payload"])} for r in rows]
 
+    def search_events(self, before=0, limit=100, start=0, end=0, query="",
+                      protocol=0, state="", reporters=(), ips=()):
+        """Filtered, newest-first cursor pagination over the full durable store.
+
+        Filtering is done in SQLite, not just over the browser's first page.
+        Event time uses the aggregation window end when available.
+        """
+        if limit not in (25, 50, 100, 200) or before < 0 or start < 0 or end < 0:
+            raise ValueError("invalid pagination or time")
+        if end and start > end:
+            raise ValueError("invalid time range")
+        if protocol not in (0, 1, 6, 17, 58, 132):
+            raise ValueError("invalid protocol")
+        if state not in ("", "started", "ended", "blocked", "p2p", "routed"):
+            raise ValueError("invalid event filter")
+        if len(query) > 120 or any(ord(c) < 32 for c in query):
+            raise ValueError("invalid search")
+        if len(reporters) > 60 or len(ips) > 90:
+            raise ValueError("too many peer filters")
+        if any(len(x)>128 for x in reporters) or any(len(x)>65 for x in ips):
+            raise ValueError("invalid peer filter")
+        conditions = []
+        args = []
+        timestamp = "COALESCE(CAST(json_extract(payload,'$.window_end') AS INTEGER),CAST(json_extract(payload,'$.ts') AS INTEGER))"
+        if start:
+            conditions.append(timestamp + " >= ?")
+            args.append(start)
+        if end:
+            conditions.append(timestamp + " <= ?")
+            args.append(end)
+        if protocol:
+            conditions.append("CAST(json_extract(payload,'$.protocol') AS INTEGER)=?")
+            args.append(protocol)
+        if state == "p2p":
+            conditions.append("COALESCE(json_extract(payload,'$.source_resource_id'),'')='' AND COALESCE(json_extract(payload,'$.destination_resource_id'),'')=''")
+        elif state == "routed":
+            conditions.append("(COALESCE(json_extract(payload,'$.source_resource_id'),'')!='' OR COALESCE(json_extract(payload,'$.destination_resource_id'),'')!='')")
+        elif state:
+            field = {"started":"num_of_starts","ended":"num_of_ends","blocked":"num_of_drops"}[state]
+            conditions.append("CAST(COALESCE(json_extract(payload,'$." + field + "'),0) AS INTEGER)>0")
+        if reporters or ips:
+            selections = []
+            if reporters:
+                selections.append("reporter IN (" + ",".join("?" for _ in reporters) + ")")
+                args.extend(reporters)
+            if ips:
+                target = ",".join("?" for _ in ips)
+                selections.append("(json_extract(payload,'$.src') IN (" + target + ") OR json_extract(payload,'$.dst') IN (" + target + "))")
+                args.extend(ips)
+                args.extend(ips)
+            conditions.append("(" + " OR ".join(selections) + ")")
+        if query:
+            q = "%" + query.lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+            fields = ["reporter", "json_extract(payload,'$.src')",
+                      "json_extract(payload,'$.dst')",
+                      "CAST(json_extract(payload,'$.sport') AS TEXT)",
+                      "CAST(json_extract(payload,'$.dport') AS TEXT)",
+                      "json_extract(payload,'$.event_id')",
+                      "json_extract(payload,'$.rule_id')"]
+            conditions.append("("+" OR ".join("LOWER("+field+") LIKE ? ESCAPE '\\\\'" for field in fields)+")")
+            args.extend([q]*len(fields))
+        where = " WHERE " + " AND ".join(conditions) if conditions else ""
+        with closing(self.connect()) as db:
+            total = db.execute("SELECT COUNT(*) FROM events" + where, args).fetchone()[0]
+            cursor = (" WHERE id < ?" if not conditions else " AND id < ?") if before else ""
+            rows = db.execute("SELECT id,received,payload FROM events" + where + cursor +
+                              " ORDER BY id DESC LIMIT ?",
+                              args + ([before] if before else []) + [limit+1]).fetchall()
+        more = len(rows)>limit
+        page = rows[:limit]
+        return {"flows":[{"id":r["id"],"received":r["received"],**json.loads(r["payload"])} for r in page],
+                "next_cursor":page[-1]["id"] if more and page else None,
+                "has_more":more,"total":total}
+
     def status(self):
         with closing(self.connect()) as db:
             row = db.execute("SELECT COUNT(*) total, MAX(received) last_received, "
@@ -242,6 +316,26 @@ def make_http_server(store, token, address=("127.0.0.1", 0)):
                 payload, code = {**store.status(), "source": "netbird_native",
                                  "client_reporting_configured": None,
                                  "note": "Receiver does not enable reporting on Community Management."}, 200
+            elif route.path == "/api/native/query":
+                try:
+                    params=parse_qs(route.query,keep_blank_values=True)
+                    def number_param(name,default=0):
+                        value=params.get(name,[str(default)])[0]
+                        if len(value)>15: raise ValueError("number too long")
+                        return int(value)
+                    result=store.search_events(
+                        before=number_param("before"),
+                        limit=number_param("limit",100),
+                        start=number_param("start"),
+                        end=number_param("end"),
+                        query=params.get("q",[""])[0],
+                        protocol=number_param("protocol"),
+                        state=params.get("state",[""])[0],
+                        reporters=tuple(x for x in params.get("reporters",[""])[0].split(",") if x),
+                        ips=tuple(x for x in params.get("ips",[""])[0].split(",") if x))
+                    payload,code=result,200
+                except (ValueError, OverflowError):
+                    payload,code={"error":"invalid traffic filters"},400
             elif route.path in ("/api/native/flows", "/api/native/export.ndjson"):
                 try:
                     query = parse_qs(route.query)
