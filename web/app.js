@@ -65,7 +65,7 @@ async function req(url, options = {}) {
 }
 
 // Optional metadata is received from the logged-in NetBird parent's /api/peers.
-let peerByIP = new Map();
+let peerByIP = new Map(), peerByID = new Map();
 let flowSnapshot = null;
 function endpoint(ip) {
   const peer = peerByIP.get(ip);
@@ -204,41 +204,6 @@ function renderSensors(data) {
   }
   $("flow-sensor-list").replaceChildren(fragment);
 }
-let nativeCursor = 0;
-async function refreshNative(next = false) {
-  if (!next) nativeCursor = 0;
-  try {
-    const data = await req("api/traffic/native?limit=100&since=" + nativeCursor);
-    $("native-note").textContent = data.note;
-    $("native-table").hidden = !data.available;
-    $("native-next").hidden = !data.available || data.flows.length < 100;
-    const fragment = document.createDocumentFragment();
-    for (const row of data.flows || []) {
-      const tr = document.createElement("tr");
-      const protocol = ({6:"TCP",17:"UDP",1:"ICMP",58:"ICMPv6"})[row.protocol] || row.protocol;
-      const values = [date(row.ts), row.reporter_id, endpoint(row.src) + ":" + row.sport,
-        endpoint(row.dst) + ":" + row.dport,
-        protocol + " / " + ({1:"ingress",2:"egress"}[row.direction] || "unknown"),
-        fmt(row.num_of_starts), fmt(row.num_of_ends), fmt(row.num_of_drops),
-        humanBytes(Number(row.rx_bytes) + Number(row.tx_bytes)), row.rule_id || "Unavailable"];
-      for (const value of values) {
-        const cell = document.createElement("td");
-        cell.textContent = String(value);
-        tr.append(cell);
-      }
-      fragment.append(tr);
-    }
-    if (!(data.flows || []).length)
-      fragment.append(makeEmptyRow(10, "No native reports received yet. Reports appear when connected peers generate traffic with native reporting enabled."));
-    $("native-rows").replaceChildren(fragment);
-    nativeCursor = data.next_cursor || 0;
-  } catch (_) {
-    $("native-note").textContent = "Native reports unavailable";
-    $("native-table").hidden = true;
-    $("native-next").hidden = true;
-  }
-}
-$("native-next").addEventListener("click", () => refreshNative(true));
 async function refreshAnalytics() {
   const windowMinutes = Number($("flow-window").value);
   const [data, sensorData] = await Promise.all([
@@ -263,15 +228,19 @@ window.addEventListener("message", event => {
       event.data.source !== "shirobird-peer-directory" || !Array.isArray(event.data.peers))
     return;
   peerByIP = new Map();
+  peerByID = new Map();
   for (const peer of event.data.peers.slice(0, 5000)) {
     if (!peer || typeof peer !== "object" || typeof peer.name !== "string") continue;
+    if (peer.id) peerByID.set(peer.id, peer);
     for (const ip of [peer.ip, peer.ipv6]) {
       if (typeof ip === "string" && ip.length && ip.length < 65)
-        peerByIP.set(ip.split("/")[0], {name: peer.name, connected: !!peer.connected});
+        peerByIP.set(ip.split("/")[0], peer);
     }
   }
   renderAnalytics();
   renderFlows();
+  updateEventPeers();
+  renderNative();
 });
 function renderFlows() {
   const filter = $("filter").value.toLowerCase();
@@ -364,8 +333,11 @@ async function start() {
   try {
     if (page === "siem-integration") await refreshSiem();
     else {
-      await Promise.all([refreshFlows(), refreshAnalytics(), refreshNative()]);
-      connectFlows();
+      await refreshNative();
+      if ($("central-observation").open) {
+        await Promise.all([refreshFlows(), refreshAnalytics()]);
+        connectFlows();
+      }
     }
     $("auth").classList.add("hidden");
   } catch (error) {
@@ -401,7 +373,7 @@ $("flow-search").addEventListener("input", renderAnalytics);
 $("flow-analytics-refresh").addEventListener("click", () =>
   refreshAnalytics().catch(() => status("Analytics unavailable")));
 if (page === "traffic-flow") window.setInterval(() => {
-  if (!document.hidden) void refreshAnalytics().catch(() => {});
+  if (!document.hidden && $("central-observation").open) void refreshAnalytics().catch(() => {});
 }, 30000);
 $("filter").addEventListener("input", renderFlows);
 $("refresh").addEventListener("click", () => refreshFlows().catch(() => status("Unavailable")));
@@ -458,4 +430,10 @@ $("copy-wazuh").addEventListener("click", async event => {
     $("siem-error").textContent = "Clipboard unavailable. Select and copy the configuration manually.";
   }
 });
-start();
+window.addEventListener("DOMContentLoaded", start);
+
+$("central-observation").addEventListener("toggle", () => {
+  if ($("central-observation").open && page === "traffic-flow") {
+    Promise.all([refreshFlows(), refreshAnalytics()]).then(connectFlows).catch(() => status("Server observation unavailable"));
+  } else if (stream) { stream.close(); stream = null; }
+});

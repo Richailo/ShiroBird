@@ -164,6 +164,73 @@ class Store:
                              "COUNT(DISTINCT reporter) reporters FROM events").fetchone()
         return dict(row)
 
+    def query_events(self, query):
+        """Filtered, stable snapshot pagination for the Traffic Events screen."""
+        def value(key, default=""):
+            return query.get(key, [default])[0]
+        def integer(key, default, maximum):
+            result = int(value(key, str(default)))
+            if not 0 <= result <= maximum:
+                raise ValueError("invalid " + key)
+            return result
+        limit = max(1, integer("limit", 50, 200))
+        offset = integer("offset", 0, 10000000)
+        start, end = integer("start", 0, 10**12), integer("end", 10**12, 10**12)
+        if start > end:
+            raise ValueError("invalid time range")
+        field = lambda key: "json_extract(payload, '$." + key + "')"
+        where, args = [field("ts") + " BETWEEN ? AND ?"], [start, end]
+        for key in ("protocol", "direction", "src", "dst", "reporter_id"):
+            if value(key):
+                where.append(field(key) + " = ?")
+                args.append(int(value(key)) if key in ("protocol", "direction") else value(key)[:128])
+        state = value("event")
+        if state:
+            counter = {"start": "num_of_starts", "end": "num_of_ends", "drop": "num_of_drops"}.get(state)
+            if not counter:
+                raise ValueError("invalid event")
+            where.append(field(counter) + " > 0")
+        terms = [value("q").strip().lower()[:128]] if value("q").strip() else []
+        terms += [s.lower()[:128] for s in query.get("match", [])[:100] if s]
+        if terms:
+            columns = ("src", "dst", "sport", "dport", "reporter_id", "rule_id", "flow_id")
+            searches = []
+            for term in terms:
+                searches.extend("instr(lower(CAST(" + field(c) + " AS TEXT)), ?) > 0" for c in columns)
+                args.extend([term] * len(columns))
+            where.append("(" + " OR ".join(searches) + ")")
+        kind = value("kind")
+        resource = "(COALESCE(" + field("source_resource_id") + ", '') != '' OR COALESCE(" + field("destination_resource_id") + ", '') != '')"
+        if kind == "routed":
+            where.append(resource)
+        elif kind == "p2p":
+            ips = query.get("peer_ip", [])[:500]
+            if not ips:
+                where.append("0")
+            else:
+                slots = ",".join("?" for _ in ips)
+                where.extend(["NOT " + resource, field("src") + " IN (" + slots + ")", field("dst") + " IN (" + slots + ")"])
+                args.extend(ips + ips)
+        elif kind:
+            raise ValueError("invalid flow kind")
+        sort = {"time": field("ts"), "source": field("src"), "destination": field("dst"),
+                "protocol": field("protocol"), "traffic": field("rx_bytes") + " + " + field("tx_bytes"),
+                "reporter": "reporter", "event": field("num_of_drops")}.get(value("sort", "time"))
+        order = value("order", "desc")
+        if not sort or order not in ("asc", "desc"):
+            raise ValueError("invalid sort")
+        with closing(self.connect()) as db:
+            ceiling = integer("snapshot", 0, 2**63 - 1) or db.execute("SELECT COALESCE(MAX(id),0) FROM events").fetchone()[0]
+            where.append("id <= ?")
+            args.append(ceiling)
+            clause = " WHERE " + " AND ".join(where)
+            total = db.execute("SELECT COUNT(*) FROM events" + clause, args).fetchone()[0]
+            rows = db.execute("SELECT id,received,payload FROM events" + clause +
+                              " ORDER BY " + sort + " " + order + ", id " + order + " LIMIT ? OFFSET ?",
+                              args + [limit, offset]).fetchall()
+        return {"flows": [{"id": r["id"], "received": r["received"], **json.loads(r["payload"])} for r in rows],
+                "total": total, "snapshot": ceiling, "offset": offset, "limit": limit}
+
     def export_pending(self):
         """At-least-once JSONL export; crash after fsync can duplicate, never ACK before DB commit."""
         with self.export_lock, closing(self.connect()) as db:
@@ -242,6 +309,11 @@ def make_http_server(store, token, address=("127.0.0.1", 0)):
                 payload, code = {**store.status(), "source": "netbird_native",
                                  "client_reporting_configured": None,
                                  "note": "Receiver does not enable reporting on Community Management."}, 200
+            elif route.path == "/api/native/events":
+                try:
+                    payload, code = store.query_events(parse_qs(route.query, max_num_fields=650)), 200
+                except (ValueError, TypeError):
+                    payload, code = {"error": "invalid event query"}, 400
             elif route.path in ("/api/native/flows", "/api/native/export.ndjson"):
                 try:
                     query = parse_qs(route.query)
