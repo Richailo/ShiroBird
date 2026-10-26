@@ -129,6 +129,22 @@ assert.equal(toggles.length,1,"one inline chevron; no Details button");
 assert.equal(toggles[0].attributes["aria-expanded"],"true");
 assert.equal(helper.nativeFlowIdentity({...selected,flow_id:""}),"");
 assert.equal(helper.nativeFlowIdentity({...selected,reporter_id:""}),"");
+const grouped={...selected,grouped:true,activity_key:"abcDEF12",service_port:8006,
+  report_count:5,flow_count:4,num_of_starts:9,num_of_ends:7,num_of_drops:1};
+helper.setCache("activity:abcDEF12",{flows:[prior,otherPeer,selected],total:3});
+helper.setExpanded(helper.nativeEventKey(grouped));
+assert.equal(helper.nativeEventKey(grouped),"activity:abcDEF12");
+assert.equal(helper.nativeFlowIdentity(grouped),"activity:abcDEF12");
+assert.equal(helper.nativeTimelineRows(grouped).length,4,
+  "compact summary expands genuine separate reporter-perspective raw reports");
+const compactCell=helper.nativeEventCell(grouped);
+assert.match(treeText(compactCell),/5 recorded reports/);
+assert.match(treeText(compactCell),/4 distinct flow IDs/);
+assert.match(treeText(compactCell),/Activity grouping only/);
+assert.equal(helper.nativeProtocol(grouped).children[1].textContent,"8006");
+assert.equal(treeText(helper.nativeRouterCell(grouped)),"Per report",
+  "independent connections must not be assigned the same guessed router");
+
 helper.setDirectory({complete:true,policies:[],routes:[
   {id:"route1",peer:"peer1",enabled:true,peer_groups:[]},
   {id:"route1",peer:"peer2",enabled:true,peer_groups:[]}
