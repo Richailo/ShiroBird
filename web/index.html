@@ -29,15 +29,110 @@
         </div>
       </div>
       <section class="panel native-events-panel" aria-label="Native NetBird peer traffic reports">
-        <div class="panelhead"><div><h2>Native peer reports · P2P and routed</h2>
-          <p id="native-note">Checking native NetBird flow receiver…</p></div>
-          <div class="actions native-table-actions">
-            <label for="native-search" class="sr-label">Filter loaded native flows</label>
-            <input id="native-search" type="search" placeholder="Search peer, IP or port" aria-label="Filter loaded native flows">
-            <button id="native-next" class="secondary" type="button" hidden>Next 100</button>
+        <div class="panelhead native-events-heading">
+          <div><h2>Native peer reports · P2P and routed</h2>
+            <p id="native-note" aria-live="polite">Checking native NetBird flow receiver…</p>
           </div>
         </div>
-        <p class="native-scope-note">Traffic directions and byte counters are reported from each NetBird peer's perspective. Sort and search apply to the loaded page only.</p>
+        <button id="native-stream-card" class="native-stream-card" type="button"
+                aria-label="Open SIEM Integration to inspect event streaming">
+          <span class="native-stream-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="19" height="19" fill="none"
+                 stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <circle cx="12" cy="12" r="2"/>
+              <path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4"/>
+              <path d="M4.5 4.5a11 11 0 0 0 0 15M19.5 4.5a11 11 0 0 1 0 15"/>
+            </svg>
+          </span>
+          <span class="native-stream-content">
+            <strong>Event Streaming</strong>
+            <small id="native-stream-description">Checking native receiver…</small>
+          </span>
+          <span id="native-stream-status" class="native-stream-status">Checking…</span>
+        </button>
+        <div class="native-toolbar" role="search" aria-label="Native traffic event filters">
+          <label class="native-search-field">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none"
+                 stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>
+            </svg>
+            <input id="native-search" type="search" placeholder="Search IP, peer or port"
+                   aria-label="Search all recorded traffic events" autocomplete="off">
+            <kbd>⌘ K</kbd>
+          </label>
+          <label class="sr-label" for="native-range">Date range</label>
+          <select id="native-range" aria-label="Date range">
+            <option value="3600">Last Hour</option>
+            <option value="86400">Last 24 Hours</option>
+            <option value="172800" selected>Last 2 Days</option>
+            <option value="604800">Last 7 Days</option>
+            <option value="2592000">Last 30 Days</option>
+            <option value="0">All Time</option>
+            <option value="custom">Custom Range…</option>
+          </select>
+          <label class="sr-label" for="native-user">User</label>
+          <select id="native-user" aria-label="Filter by NetBird user">
+            <option value="">All Users</option>
+          </select>
+          <div class="native-filter-wrapper">
+            <button id="native-filter-toggle" class="native-tool-button" type="button"
+                    aria-expanded="false" aria-controls="native-advanced">Filter</button>
+            <div id="native-advanced" class="native-advanced" hidden>
+              <strong>Traffic filters</strong>
+              <label>Protocol
+                <select id="native-protocol">
+                  <option value="0">All protocols</option>
+                  <option value="6">TCP</option>
+                  <option value="17">UDP</option>
+                  <option value="1">ICMP</option>
+                  <option value="58">ICMPv6</option>
+                  <option value="132">SCTP</option>
+                </select>
+              </label>
+              <label>Event type
+                <select id="native-event-type">
+                  <option value="">All events</option>
+                  <option value="started">Connection started</option>
+                  <option value="ended">Connection ended</option>
+                  <option value="blocked">Blocked / dropped</option>
+                  <option value="p2p">P2P</option>
+                  <option value="routed">Routed</option>
+                </select>
+              </label>
+              <div class="native-custom-dates" id="native-custom-dates" hidden>
+                <label>From <input id="native-from" type="datetime-local"></label>
+                <label>To <input id="native-to" type="datetime-local"></label>
+              </div>
+            </div>
+          </div>
+          <label class="sr-label" for="native-page-size">Rows per page</label>
+          <select id="native-page-size" aria-label="Rows per page">
+            <option value="25">25 rows per page</option>
+            <option value="50">50 rows per page</option>
+            <option value="100" selected>100 rows per page</option>
+            <option value="200">200 rows per page</option>
+          </select>
+          <button id="native-refresh" class="native-tool-button native-icon-button" type="button"
+                  aria-label="Refresh traffic events" title="Refresh">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                 stroke-linejoin="round" aria-hidden="true">
+              <path d="M20 11a8 8 0 0 0-14-5L3 9"/><path d="M3 3v6h6"/>
+              <path d="M4 13a8 8 0 0 0 14 5l3-3"/><path d="M21 21v-6h-6"/>
+            </svg>
+          </button>
+          <button id="native-clear" class="native-tool-button native-icon-button" type="button"
+                  aria-label="Clear all traffic filters" title="Clear filters">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                 stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 5h16l-6.5 7.5V20l-3-2v-5.5Z"/>
+              <path d="m17 16 5 5M22 16l-5 5"/>
+            </svg>
+          </button>
+        </div>
+        <div class="native-chips" id="native-active-filters" aria-live="polite"></div>
+        <p class="native-scope-note">Native peer perspective (RX/TX). Filters, sorting and pagination cover the entire stored event history.</p>
         <div class="tablewrap" id="native-table" hidden tabindex="0" aria-label="Native peer traffic events, horizontally scrollable">
           <table class="native-events-table">
             <thead><tr>
@@ -51,6 +146,14 @@
             </tr></thead>
             <tbody id="native-rows"></tbody>
           </table>
+        </div>
+        <div class="native-pagination" id="native-pagination">
+          <span id="native-results-count" role="status" aria-live="polite">Loading events…</span>
+          <div class="native-page-actions">
+            <button id="native-prev" class="native-tool-button" type="button" disabled>Previous</button>
+            <span id="native-page-label">Page 1</span>
+            <button id="native-next" class="native-tool-button" type="button" disabled>Next</button>
+          </div>
         </div>
       </section>
       <div class="flow-tools">
