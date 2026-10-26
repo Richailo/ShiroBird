@@ -9,7 +9,7 @@ const ids=[
   "native-stream-card","native-stream-status","native-search","native-range",
   "native-user","native-filter-toggle","native-advanced","native-protocol",
   "native-event-type","native-custom-dates","native-from","native-to",
-  "native-page-size","native-refresh","native-clear","native-prev","native-next",
+  "native-page-size","native-view","native-refresh","native-clear","native-prev","native-next",
   "native-results-count","native-active-filters"
 ];
 for(const id of ids){
@@ -19,6 +19,11 @@ assert.equal((html.match(/id="native-next"/g)||[]).length,1);
 assert.match(css,/\.native-stream-status\.receiving/);
 assert.match(css,/\.native-advanced\[hidden\]/);
 assert.match(js,/filtered:"1"/);
+assert.match(js,/compact:\$\("native-view"\)\.value==="compact"\?"1":"0"/);
+assert.match(html,/<option value="compact" selected>/);
+assert.match(html,/<option value="raw">All native reports<\/option>/);
+assert.match(js,/nativeTimelineCache\.clear\(\)/);
+
 assert.match(js,/nativeSort,order:nativeDescending\?"desc":"asc"/);
 const begin=js.indexOf("function nativeTimeFilters() {");
 const end=js.indexOf("function renderNativeFilterChips()",begin);
