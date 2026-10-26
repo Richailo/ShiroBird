@@ -214,21 +214,22 @@ function renderSensors(data) {
 }
 // Presentation follows NetBird's Traffic Events layout, using only
 // fields that the native reporter actually provided.
+// These are the exact third-party icon families used upstream by NetBird:
+// react-icons/fa6 (Font Awesome Windows), react-icons/fc (Icons8 Linux/Android),
+// Lucide (resources, protocols and traffic), Tabler (column sorting).
+// Locally served static assets: no CDN or external requests by clients.
 const trafficNS = "http://www.w3.org/2000/svg";
-const trafficShapes = {
-  windows: ["rect:2,2,9,9", "rect:13,2,9,9", "rect:2,13,9,9", "rect:13,13,9,9"],
-  macos: ["path:M12 20.9c1.5 0 2.7 1.1 4 1.1 3 0 4-4.2 4-7.5 0-3.2-1.5-5.5-4.5-5.5-1.5 0-2.5 1-3.5 1s-2-1-3.5-1C5.5 9 4 11.3 4 14.5 4 17.8 5 22 8 22c1.3 0 2.5-1.1 4-1.1Z",
-    "path:M12 8c0-3 1.5-5 4-6 0 3-1.5 5-4 6Z"],
-  linux: ["rect:3,4,18,16", "path:M7 9l3 3-3 3", "path:M13 16h4"],
-  android: ["path:M5 10a7 7 0 0 1 14 0", "path:M5 10v7h14v-7", "path:M8 5 6 2", "path:M16 5l2-3"],
-  mobile: ["rect:7,2,10,20", "path:M11 18h2"],
-  monitor: ["rect:2,3,20,15", "path:M8 22h8 M12 18v4"],
-  globe: ["circle:12,12,9", "path:M3 12h18", "path:M12 3a16 16 0 0 0 0 18", "path:M12 3a16 16 0 0 1 0 18"]
-};
+const nativeAssets = Object.freeze({
+  windows:"icons/windows.svg", macos:"icons/macos.svg",
+  linux:"icons/linux.svg", android:"icons/android.svg",
+  mobile:"icons/ios.svg", monitor:"icons/monitor.svg",
+  globe:"icons/globe.svg", network:"icons/network.svg",
+  route:"icons/route.svg", share:"icons/share.svg"
+});
 function osKind(value) {
   const os = String(value || "").toLowerCase();
   if (/windows/.test(os)) return "windows";
-  if (/darwin|mac\s?os|macos|os x/.test(os)) return "macos";
+  if (/darwin|mac\\s?os|macos|os x/.test(os)) return "macos";
   if (/android/.test(os)) return "android";
   if (/ios|iphone|ipad/.test(os)) return "mobile";
   if (/linux|ubuntu|debian|fedora|centos|arch/.test(os)) return "linux";
@@ -237,32 +238,60 @@ function osKind(value) {
 function nativeIcon(kind) {
   const tile = document.createElement("span");
   tile.className = "native-os-icon";
+  const mapped = nativeAssets[kind] || nativeAssets.monitor;
   tile.title = kind === "globe" ? "Network resource / IP address" :
     kind === "monitor" ? "Peer (OS not reported)" : kind.toUpperCase();
   tile.setAttribute("aria-label", tile.title);
-  const svg = document.createElementNS(trafficNS, "svg");
-  for (const [k,v] of Object.entries({
-    viewBox:"0 0 24 24", width:"18",height:"18",
-    fill:kind === "windows" ? "currentColor" : "none",
-    stroke:"currentColor","stroke-width":"1.6",
-    "stroke-linecap":"round","stroke-linejoin":"round"
-  })) svg.setAttribute(k,v);
-  for (const token of (trafficShapes[kind] || trafficShapes.monitor)) {
-    const [shape,args] = token.split(":");
-    const node = document.createElementNS(trafficNS,shape);
-    if (shape === "rect") {
-      const [x,y,w,h] = args.split(",");
-      for (const [name,val] of [["x",x],["y",y],["width",w],["height",h]])
-        node.setAttribute(name,val);
-      if (kind !== "windows") node.setAttribute("rx","1.5");
-    } else if (shape === "circle") {
-      const [cx,cy,r] = args.split(",");
-      node.setAttribute("cx",cx);node.setAttribute("cy",cy);node.setAttribute("r",r);
-    } else node.setAttribute("d",args);
-    svg.append(node);
-  }
-  tile.append(svg);
+  const img = document.createElement("img");
+  img.className = "native-library-icon" +
+    (["windows","macos","linux","android","mobile"].includes(kind) ? " native-os-logo" : "");
+  img.setAttribute("src", mapped);
+  img.setAttribute("alt", "");
+  img.setAttribute("aria-hidden", "true");
+  img.setAttribute("width", "18");
+  img.setAttribute("height", "18");
+  tile.append(img);
   return tile;
+}
+function lucideIcon(name, size=15) {
+  const svg = document.createElementNS(trafficNS,"svg");
+  for(const [key,val] of Object.entries({
+    viewBox:"0 0 24 24", width:String(size), height:String(size),
+    fill:"none", stroke:"currentColor", "stroke-width":"2",
+    "stroke-linecap":"round", "stroke-linejoin":"round",
+    "aria-hidden":"true"
+  })) svg.setAttribute(key,val);
+  const marks = name === "arrow-down" ?
+    [["path","M12 5v14"],["path","m19 12-7 7-7-7"]] :
+    name === "arrow-up" ?
+    [["path","M12 19V5"],["path","m5 12 7-7 7 7"]] :
+    name === "share-2" ?
+    [["circle",{cx:18,cy:5,r:3}],["circle",{cx:6,cy:12,r:3}],
+     ["circle",{cx:18,cy:19,r:3}],
+     ["line",{x1:8.59,x2:15.42,y1:13.51,y2:17.49}],
+     ["line",{x1:15.41,x2:8.59,y1:6.51,y2:10.49}]] : [];
+  for(const [kind,attributes] of marks) {
+    const el=document.createElementNS(trafficNS,kind);
+    if(typeof attributes==="string")el.setAttribute("d",attributes);
+    else for(const [key,val] of Object.entries(attributes))el.setAttribute(key,String(val));
+    svg.append(el);
+  }
+  return svg;
+}
+function tablerSortIcon(descending) {
+  // Tabler IconSortAscending / IconSortDescending used by DataTableHeader.
+  const svg=document.createElementNS(trafficNS,"svg");
+  for(const [key,val] of Object.entries({
+    viewBox:"0 0 24 24",width:"16",height:"16",fill:"none",
+    stroke:"currentColor","stroke-width":"2","stroke-linecap":"round",
+    "stroke-linejoin":"round","aria-hidden":"true"
+  }))svg.setAttribute(key,val);
+  const paths=descending?
+    ["M4 6l9 0","M4 12l7 0","M4 18l7 0","M15 15l3 3l3 -3","M18 6l0 12"]:
+    ["M4 6l7 0","M4 12l7 0","M4 18l9 0","M15 9l3 -3l3 3","M18 6l0 12"];
+  for(const path of paths){const el=document.createElementNS(trafficNS,"path");
+    el.setAttribute("d",path);svg.append(el);}
+  return svg;
 }
 function nativePeer(ip, port=0) {
   const peer = peerByIP.get(ip);
@@ -289,7 +318,10 @@ function nativeProtocol(row) {
   const proto = document.createElement("span");
   proto.className = "native-chip";
   const num = Number(row.protocol);
-  proto.textContent = ({6:"TCP",17:"UDP",1:"ICMP",58:"ICMPv6",132:"SCTP"})[num] || ("IP "+num);
+  proto.append(lucideIcon("share-2",12));
+  const protoLabel=document.createElement("span");
+  protoLabel.textContent = ({6:"TCP",17:"UDP",1:"ICMP",58:"ICMPv6",132:"SCTP"})[num] || ("IP "+num);
+  proto.append(protoLabel);
   container.append(proto);
   const port = num === 6 || num === 17 ? Number(row.dport) :
     num === 1 || num === 58 ? null : 0;
@@ -356,7 +388,7 @@ function nativeTrafficCell(row) {
     line.className = "native-traffic-line native-traffic-" + direction;
     const arrow = document.createElement("span");
     arrow.className = "native-traffic-arrow";
-    arrow.textContent = direction === "rx" ? "↓" : "↑";
+    arrow.append(lucideIcon(direction === "rx" ? "arrow-down" : "arrow-up", 15));
     arrow.setAttribute("aria-label",direction === "rx" ?
       "Received by reporting peer" : "Sent by reporting peer");
     const number = document.createElement("span");
@@ -437,7 +469,7 @@ function renderNativeRows() {
     btn.setAttribute("aria-sort", active ?
       (nativeDescending ? "descending" : "ascending") : "none");
     const arrow = btn.querySelector(".native-sort-arrow");
-    if (arrow) arrow.textContent = active ? (nativeDescending ? "↓" : "↑") : "↕";
+    if (arrow) arrow.replaceChildren(tablerSortIcon(active ? nativeDescending : false));
   }
 }
 async function refreshNative(next = false) {
