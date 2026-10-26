@@ -569,9 +569,10 @@ class Handler(BaseHTTPRequestHandler):
         route = self.route()
         if route == "/healthz":
             return self.reply(200, {"status": "ok", "version": "0.1.0"})
-        if route in ("/", "/app.js", "/style.css"):
+        if route in ("/", "/app.js", "/events.js", "/style.css"):
             names = {"/": ("index.html", "text/html; charset=utf-8"),
                      "/app.js": ("app.js", "application/javascript; charset=utf-8"),
+                     "/events.js": ("events.js", "application/javascript; charset=utf-8"),
                      "/style.css": ("style.css", "text/css; charset=utf-8")}
             filename, mime = names[route]
             return self.reply(200, (ROOT / "web" / filename).read_bytes(), mime)
@@ -587,6 +588,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, stats())
         if route == "/api/traffic/native":
             return self.reply(200, native_flow.snapshot(since, limit))
+        if route == "/api/traffic/events":
+            return self.reply(200, native_flow.snapshot(query=qs))
         if route == "/api/traffic/sensors":
             return self.reply(200, sensor_status())
         if route == "/api/traffic/analytics":

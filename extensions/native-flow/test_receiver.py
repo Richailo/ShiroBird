@@ -67,6 +67,35 @@ class ReceiverTests(unittest.TestCase):
         self.assertEqual(row["rule_id"], (b"r" * 16).hex())
         self.assertIsNotNone(row["window_start"])
 
+    def test_event_query_filters_and_stable_pages(self):
+        for i in range(5):
+            record = r.event_record(sample(), "peer-A" if i % 2 else "peer-B")
+            record.update(event_id=str(i), ts=100 + i, protocol=6 if i % 2 else 17,
+                          num_of_drops=1 if i == 3 else 0)
+            self.store.save(record)
+        page = self.store.query_events({"limit": ["2"]})
+        self.assertEqual([e["ts"] for e in page["flows"]], [104, 103])
+        record.update(event_id="new", ts=200)
+        self.store.save(record)
+        next_page = self.store.query_events({"limit": ["2"], "offset": ["2"], "snapshot": [str(page["snapshot"])]})
+        self.assertEqual(next_page["total"], 5)
+        self.assertEqual([e["ts"] for e in next_page["flows"]], [102, 101])
+        filtered = self.store.query_events({"protocol": ["6"], "event": ["drop"], "start": ["100"], "end": ["104"]})
+        self.assertEqual([e["ts"] for e in filtered["flows"]], [103])
+        self.assertEqual(self.store.query_events({"q": ["50000"]})["total"], 6)
+        self.assertEqual(self.store.query_events({"q": ["%'"]})["total"], 0)
+        self.assertEqual(self.store.query_events({"q": ["Alice"], "match": ["100.64.1.2"]})["total"], 6)
+
+    def test_event_query_classification_and_validation(self):
+        self.store.save(r.event_record(sample(), "peer-A"))
+        self.assertEqual(self.store.query_events({"kind": ["p2p"]})["total"], 0)
+        self.assertEqual(self.store.query_events({"kind": ["p2p"], "peer_ip": ["100.64.1.2", "100.64.1.3"]})["total"], 1)
+        self.assertEqual(self.store.query_events({"kind": ["routed"]})["total"], 0)
+        for query in ({"limit": ["201"]}, {"offset": ["-1"]}, {"sort": ["payload; DROP TABLE events"]},
+                      {"order": ["arbitrary"]}, {"event": ["allowed"]}, {"start": ["200"], "end": ["100"]}):
+            with self.assertRaises(ValueError):
+                self.store.query_events(query)
+
     def test_retry_and_restart_are_idempotent(self):
         event = sample()
         for _ in range(2):

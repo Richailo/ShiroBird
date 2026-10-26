@@ -3,7 +3,7 @@ import json
 import os
 from pathlib import Path
 from urllib.error import URLError
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlencode
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 
@@ -12,7 +12,7 @@ class NoRedirect(HTTPRedirectHandler):
         return None
 
 
-def snapshot(after=0, limit=200):
+def snapshot(after=0, limit=200, query=None):
     url = os.getenv("SHIROBIRD_NATIVE_API_URL", "").rstrip("/")
     if not url:
         return {"configured": False, "available": False, "flows": [],
@@ -42,10 +42,15 @@ def snapshot(after=0, limit=200):
                 return result
 
         status = get("/api/native/status")
-        page = get("/api/native/flows?after=" + str(max(0, int(after))) +
-                   "&limit=" + str(min(1000, max(1, int(limit)))))
+        if query is not None:
+            allowed = {"start", "end", "offset", "limit", "snapshot", "q", "match", "peer_ip",
+                       "protocol", "direction", "src", "dst", "reporter_id", "event", "kind", "sort", "order"}
+            page = get("/api/native/events?" + urlencode({k: v for k, v in query.items() if k in allowed}, doseq=True))
+        else:
+            page = get("/api/native/flows?after=" + str(max(0, int(after))) +
+                       "&limit=" + str(min(1000, max(1, int(limit)))))
         return {"configured": True, "available": True, "status": status,
-                "flows": page["flows"], "next_cursor": page["next_cursor"],
+                **page,
                 "note": "Peer-reported native flows; reporter perspectives are not deduplicated across peers. "
                         "Do not add native counters to central conntrack totals."}
     except (OSError, URLError, ValueError, KeyError, TypeError):

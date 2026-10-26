@@ -7,6 +7,7 @@
   <title>ShiroBird · NetBird observability</title>
   <link rel="stylesheet" href="style.css">
   <script src="app.js" defer></script>
+  <script src="events.js" defer></script>
 </head>
 <body>
   <header>
@@ -21,24 +22,41 @@
     <section id="traffic-view">
       <div class="hero">
         <div><small class="eyebrow">SHIROBIRD</small><h1>Traffic Flow</h1>
-          <p>Central observation on the routing server. No extra software or configuration on clients.</p>
+          <p>Connection activity across your NetBird network.</p>
         </div>
         <div class="actions">
-          <a href="api/export.csv" class="button secondary">Export CSV</a>
-          <a href="api/export.ndjson" class="button secondary">Export JSONL</a>
+          <button id="events-export" class="secondary" type="button">Export page</button>
         </div>
       </div>
-      <section class="panel" aria-label="Native peer reports">
-        <div class="panelhead"><div><h2>Native peer reports · P2P and routed</h2>
-          <p id="native-note">Checking optional receiver…</p></div>
-          <button id="native-next" class="secondary" type="button" hidden>Next reports</button>
+      <section class="panel events-panel" aria-label="Traffic events">
+        <div class="events-toolbar">
+          <input id="events-search" type="search" aria-label="Search traffic events" placeholder="Search peers, IP addresses, ports…">
+          <select id="events-range" aria-label="Time range"><option value="60">Last hour</option><option value="1440">Last 24 hours</option><option value="2880" selected>Last 2 days</option><option value="10080">Last 7 days</option><option value="0">All time</option><option value="custom">Custom range</option></select>
+          <button id="events-filter-toggle" type="button" class="secondary" aria-expanded="false" aria-controls="events-filters">Filters</button>
+          <select id="events-size" aria-label="Rows per page"><option value="25">25 rows per page</option><option value="50" selected>50 rows per page</option><option value="100">100 rows per page</option></select>
+          <button id="events-refresh" type="button" class="secondary" aria-label="Refresh traffic events" title="Refresh">↻</button>
+          <button id="events-reset" type="button" class="secondary">Reset</button>
         </div>
-        <div class="tablewrap" id="native-table" hidden><table>
-          <thead><tr><th>Time</th><th>Reporting peer</th><th>Source</th><th>Destination</th>
-          <th>Protocol / direction</th><th>Starts</th><th>Ends</th><th>Drops</th><th>Bytes</th><th>Reported rule</th></tr></thead>
-          <tbody id="native-rows"></tbody>
+        <div id="events-dates" class="events-filters" hidden><label>From<input id="events-from" type="datetime-local"></label><label>To<input id="events-to" type="datetime-local"></label></div>
+        <div id="events-filters" class="events-filters" hidden>
+          <label>Event<select id="events-event"><option value="">All events</option><option value="start">Connection starts</option><option value="end">Connection ends</option><option value="drop">Blocked attempts</option></select></label>
+          <label>Protocol<select id="events-protocol"><option value="">All protocols</option><option value="6">TCP</option><option value="17">UDP</option><option value="1">ICMP</option><option value="58">ICMPv6</option></select></label>
+          <label>Flow type<select id="events-kind"><option value="">All types</option><option value="p2p">P2P</option><option value="routed">Routed resource</option></select></label>
+          <label>Direction<select id="events-direction"><option value="">All directions</option><option value="1">Inbound</option><option value="2">Outbound</option></select></label>
+          <label>Source<input id="events-src" list="event-peers" placeholder="IP address"></label>
+          <label>Destination<input id="events-dst" list="event-peers" placeholder="IP address"></label>
+          <label>Reporting peer<select id="events-reporter"><option value="">All peers</option></select></label>
+          <datalist id="event-peers"></datalist>
+        </div>
+        <p id="native-note" class="events-notice" role="status" hidden></p>
+        <div class="tablewrap" id="native-table"><table class="events-table">
+          <thead><tr><th aria-sort="descending"><button data-event-sort="time">Time ↓</button></th><th><button data-event-sort="event">Event ↕</button></th><th><button data-event-sort="source">Source ↕</button></th><th><button data-event-sort="protocol">Protocol &amp; port ↕</button></th><th><button data-event-sort="destination">Destination ↕</button></th><th><button data-event-sort="traffic">Traffic ↕</button></th><th><button data-event-sort="reporter">Router ↕</button></th></tr></thead>
+          <tbody id="native-rows"><tr><td colspan="7" class="events-empty">Loading traffic events…</td></tr></tbody>
         </table></div>
+        <div class="events-pagination"><span id="events-count" aria-live="polite"></span><div class="actions"><button id="events-prev" type="button" class="secondary" disabled>Previous</button><button id="events-next" type="button" class="secondary" disabled>Next</button></div></div>
       </section>
+      <details id="central-observation" class="central-details"><summary>Server observation &amp; diagnostics</summary>
+      <div class="actions central-exports"><a href="api/export.csv" class="button secondary">Export server CSV</a><a href="api/export.ndjson" class="button secondary">Export server JSONL</a></div>
       <div class="flow-tools">
         <label>Time range
           <select id="flow-window">
@@ -128,6 +146,7 @@
           </table>
         </div>
       </section>
+      </details>
     </section>
 
     <section id="siem-view" hidden>

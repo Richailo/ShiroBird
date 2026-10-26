@@ -40,6 +40,23 @@ class NativeFlowBridgeTests(unittest.TestCase):
     def test_redirects_are_not_followed(self):
         self.assertIsNone(native_flow.NoRedirect().redirect_request(None))
 
+    def test_event_query_is_encoded_and_allowlisted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "token"
+            path.write_text("s" * 64)
+            with patch.dict("os.environ", {
+                "SHIROBIRD_NATIVE_API_URL": "http://receiver:8085",
+                "SHIROBIRD_NATIVE_API_TOKEN_FILE": str(path)
+            }), patch.object(native_flow, "build_opener") as opener:
+                opener.return_value.open.side_effect = [io.BytesIO(b'{"total":1}'),
+                    io.BytesIO(b'{"flows":[],"total":0,"snapshot":4}')]
+                data = native_flow.snapshot(query={"q": ["name & port"], "match": ["100.64.1.2"], "token": ["untrusted"]})
+                self.assertTrue(data["available"])
+                self.assertEqual(data["snapshot"], 4)
+                url = opener.return_value.open.call_args.args[0].full_url
+                self.assertIn("q=name+%26+port", url)
+                self.assertNotIn("untrusted", url)
+
     def test_url_with_userinfo_is_rejected(self):
         with patch.dict("os.environ", {"SHIROBIRD_NATIVE_API_URL": "http://user:password@receiver:8085"}):
             self.assertFalse(native_flow.snapshot()["available"])
