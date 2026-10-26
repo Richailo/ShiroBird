@@ -256,8 +256,14 @@ class Store:
 
     def status(self):
         with closing(self.connect()) as db:
-            row = db.execute("SELECT COUNT(*) total, MAX(received) last_received, "
-                             "COUNT(DISTINCT reporter) reporters FROM events").fetchone()
+            row = db.execute("""
+                SELECT COUNT(*) total, MAX(received) last_received,
+                  COUNT(DISTINCT reporter) reporters,
+                  SUM(CASE WHEN received >= ? THEN 1 ELSE 0 END) received_24h,
+                  SUM(CASE WHEN CAST(COALESCE(json_extract(payload,'$.num_of_drops'),0)
+                         AS INTEGER)>0 THEN 1 ELSE 0 END) reports_with_drops
+                FROM events
+            """,(int(time.time()) - 86400,)).fetchone()
         return dict(row)
 
     def export_pending(self):
