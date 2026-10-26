@@ -28,7 +28,7 @@ const fmt=n=>Number(n||0).toLocaleString("en-US");
 const humanBytes=n=>n===0?"0 B":n<1024?n+" B":(n/1024).toFixed(1)+" KB";
 const helper=Function("document","peerByIP","peerById","fmt","humanBytes",
   source.slice(start,stop)+
-  "\nreturn {osKind,nativeIcon,nativePeer,nativeProtocol,nativeSeverity,nativeEventDescription,nativeEventCell,nativeTrafficCell,nativeRouterCell,resolveNativeRouter,resolveNativePolicy,nativeInlineEvidence,nativeTimelineRows,nativeEventKey,nativeFlowIdentity,sameNativeConnection,nativeEventCell,setDirectory:d=>{nativeDirectory=d},setExpanded:k=>nativeExpanded.add(k),setCache:(k,v)=>nativeTimelineCache.set(k,v)}};")(
+  "\nreturn {osKind,nativeIcon,nativePeer,nativeProtocol,nativeSeverity,nativeEventDescription,nativeEventCell,nativeTrafficCell,nativeRouterCell,resolveNativeRouter,resolveNativePolicy,nativeInlineEvidence,nativeTimelineRows,nativeEventKey,nativeFlowIdentity,sameNativeConnection,setDirectory:d=>{nativeDirectory=d},setExpanded:k=>nativeExpanded.add(k),setCache:(k,v)=>nativeTimelineCache.set(k,v)};")(
     document,peerByIP,peerById,fmt,humanBytes);
 const treeText=node=>[node.textContent||"",...node.children.map(treeText)].join(" ");
 assert.equal(helper.osKind("Windows 11"),"windows");
