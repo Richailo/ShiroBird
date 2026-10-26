@@ -84,6 +84,11 @@ footer{padding:30px 0;color:var(--muted);font-size:11px}
 .overlay{position:fixed;inset:0;background:color-mix(in srgb,var(--page) 92%,transparent);
   z-index:10;display:grid;place-items:center}
 .overlay.hidden{display:none}
+/* NetBird is the only identity provider for embedded ShiroBird.
+   This CSS safety net prevents an auth-form flash even if an API
+   request fails or an older cached script tries to unhide the dialog. */
+body.embedded #auth{display:none!important}
+body.embedded #form{display:none!important}
 .login{width:min(430px,calc(100vw - 30px));padding:30px;
   border-radius:12px;border:1px solid var(--stroke);background:var(--surface);
   box-shadow:0 20px 45px #0002}
@@ -98,10 +103,7 @@ body.embedded main{max-width:none;padding:28px 29px 36px}
 body.embedded .hero .eyebrow{display:none}
 body.embedded .hero h1{font-size:25px}
 body.embedded footer{display:none}
-body.embedded .overlay[data-netbird="1"]::before{
-  content:"Waiting for NetBird authentication…";color:var(--muted);
-  font-size:14px;text-align:center
-}
+/* Embedded auth is handled by the parent NetBird dashboard, not by a modal. */
 @media(max-width:980px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:740px){.hero,.panelhead{align-items:flex-start;flex-direction:column}
   main,body.embedded main{padding:18px 16px}.actions{flex-wrap:wrap}
