@@ -35,6 +35,7 @@ let peers=0;
 const methods = Function("document","window","VIEW_ID","location","selectedPage",
  "applyTheme","sendPeersToFrame","initial",
   "let frameReady=initial.frameReady,loadedPage=initial.loadedPage,lastAuth=initial.lastAuth;\n" +
+  "let directoryFetchedAt=Date.now(); const netbirdToken=()=>null; const updatePeerDirectory=()=>{};\n" +
   parent.slice(start,end) +
   "\nreturn {showPage,getState:()=>({frameReady,loadedPage})};"
 )(document, window, "shirobird-integrated-view", location, ()=>page,
