@@ -336,28 +336,175 @@ function nativeEventDescription(row) {
   if (severity === "ended") return "Connection stopped";
   return "Traffic flow reported";
 }
+// Inline Traffic Events timeline: real reports sharing an exact reporter and flow ID.
+function nativeEventKey(row) {
+  return String(row.reporter_id || "") + ":" + String(row.event_id || row.id || "");
+}
+function nativeFlowIdentity(row) {
+  const id = String(row.flow_id || "");
+  return /^[0-9a-f]{32}$/.test(id) && typeof row.reporter_id === "string" &&
+    row.reporter_id.length > 0 ? row.reporter_id + ":" + id : "";
+}
+const nativeTimelineCache = new Map();
+function sameNativeConnection(a, b) {
+  return Boolean(nativeFlowIdentity(a)) &&
+    nativeFlowIdentity(a) === nativeFlowIdentity(b) &&
+    ["src", "dst", "protocol", "sport", "dport"].every(k =>
+      String(a[k] ?? "") === String(b[k] ?? ""));
+}
+function nativeTimelineRows(row) {
+  const cache = nativeTimelineCache.get(nativeFlowIdentity(row));
+  if (!cache || !Array.isArray(cache.flows)) return [row];
+  const matching = cache.flows.filter(e => sameNativeConnection(row,e));
+  if (!matching.some(e => nativeEventKey(e) === nativeEventKey(row))) matching.push(row);
+  matching.sort((a,b)=>Number(a.window_end || a.ts || 0)-Number(b.window_end || b.ts || 0) ||
+    Number(a.id || 0)-Number(b.id || 0));
+  return matching;
+}
 function nativeEventCell(row) {
-  const holder = document.createElement("div");
-  holder.className = "native-event";
-  const badge = document.createElement("span");
-  const level = nativeSeverity(row);
-  badge.className = "native-event-dot native-event-" + level;
-  badge.setAttribute("aria-label",level);
-  const text = document.createElement("div");
-  const title = document.createElement("strong");
-  title.textContent = nativeEventDescription(row);
-  const lines = document.createElement("small");
-  const counts = [];
-  if (Number(row.num_of_starts)) counts.push(fmt(row.num_of_starts)+" starts");
-  if (Number(row.num_of_ends)) counts.push(fmt(row.num_of_ends)+" ends");
-  if (Number(row.num_of_drops)) counts.push(fmt(row.num_of_drops)+" drops");
-  const reporter = peerById.get(row.reporter_id)?.name || row.reporter_id || "Unknown";
-  lines.textContent = counts.join(" · ") + " · Reported by " + reporter +
-    (Number(row.direction) === 1 ? " (incoming)" :
-     Number(row.direction) === 2 ? " (outgoing)" : "");
-  text.append(title,lines);
-  holder.append(badge,text);
-  return holder;
+  const key=nativeEventKey(row), opened=nativeExpanded.has(key);
+  const identity=nativeFlowIdentity(row);
+  const root=document.createElement("div");
+  root.className="native-event" + (opened ? " native-event-open" : "");
+  const timeline=document.createElement("div");
+  timeline.className="native-inline-timeline" + (opened ? " native-timeline-open" : "");
+  const reports=opened ? nativeTimelineRows(row) : [row];
+  for(const report of reports) {
+    const selected=nativeEventKey(report)===key;
+    const item=document.createElement("div");
+    item.className="native-timeline-item"+(selected ? " native-current-item" : "");
+    const dot=document.createElement("span");
+    dot.className="native-event-dot native-event-"+nativeSeverity(report);
+    dot.setAttribute("aria-label",nativeSeverity(report));
+    const body=document.createElement("div");
+    body.className="native-timeline-body";
+    if(opened) {
+      const timestamp=document.createElement("span");
+      timestamp.className="native-timeline-date";
+      timestamp.textContent=date(Number(report.window_end || report.ts || 0));
+      body.append(timestamp);
+    }
+    const line=document.createElement("div");
+    line.className="native-event-heading";
+    const title=document.createElement("span");
+    title.className="native-event-title";
+    title.textContent=nativeEventDescription(report);
+    line.append(title);
+    if(selected) {
+      const toggle=document.createElement("button");
+      toggle.type="button";
+      toggle.className="native-inline-chevron";
+      toggle.dataset.eventKey=key;
+      toggle.setAttribute("aria-label",opened ? "Collapse connection history" : "Expand connection history");
+      toggle.setAttribute("aria-expanded",String(opened));
+      toggle.title=opened ? "Collapse connection history" : "View recorded connection history and Policy";
+      toggle.append(lucideIcon("chevron-down",16));
+      line.append(toggle);
+    }
+    body.append(line);
+    if(opened) {
+      const counts=[];
+      if(Number(report.num_of_starts))counts.push(fmt(report.num_of_starts)+" starts");
+      if(Number(report.num_of_ends))counts.push(fmt(report.num_of_ends)+" ends");
+      if(Number(report.num_of_drops))counts.push(fmt(report.num_of_drops)+" drops");
+      if(counts.length) {
+        const meta=document.createElement("span");
+        meta.className="native-timeline-counts";
+        meta.textContent=counts.join(" · ");
+        body.append(meta);
+      }
+    }
+    item.append(dot,body);
+    timeline.append(item);
+  }
+  root.append(timeline);
+  if(opened) {
+    const cache=nativeTimelineCache.get(identity);
+    const note=document.createElement("div");
+    note.className="native-timeline-hint";
+    if(!identity)note.textContent="A verified flow ID was not reported; related events cannot be linked.";
+    else if(!cache)note.textContent="Loading recorded flow history…";
+    else if(cache.error)note.textContent="History unavailable: "+cache.error;
+    else if(cache.total > cache.flows.length)
+      note.textContent="Showing up to "+cache.flows.length+" latest reports for this flow.";
+    else if(reports.length===1)note.textContent="No other recorded reports for this exact connection.";
+    if(note.textContent)root.append(note);
+    root.append(nativeInlineEvidence(row));
+  }
+  return root;
+}
+function nativeInlineEvidence(row) {
+  const policy=resolveNativePolicy(row),router=resolveNativeRouter(row);
+  const container=document.createElement("div");
+  container.className="native-inline-evidence";
+  const facts=[
+    ["Policy",policy.state==="matched" ?
+      (policy.policyName || policy.policyId) : "Not reported / not verified",
+      policy.reason],
+    ["Rule",policy.state==="matched" ?
+      (policy.ruleName || policy.ruleId || "Policy-level ID") : "—",
+      policy.reason],
+    ["Router",router.peerId ?
+      (peerById.get(router.peerId)?.name || router.peerId) :
+      router.state==="p2p" ? "P2P · not applicable" : "Not confirmed",
+      router.reason]
+  ];
+  for (const [label,value,reason] of facts) {
+    const fact=document.createElement("span");
+    fact.className="native-inline-fact";
+    fact.title=reason || "";
+    const name=document.createElement("span");
+    name.textContent=label+": ";
+    const val=document.createElement("strong");
+    val.textContent=value;
+    fact.append(name,val);
+    container.append(fact);
+  }
+  // Hidden technical identifiers are available through native HTML disclosure,
+  // not through a bulky full-width details card.
+  const technical=document.createElement("details");
+  technical.className="native-technical-details";
+  const summary=document.createElement("summary");
+  summary.textContent="Technical identifiers";
+  technical.append(summary);
+  const info=document.createElement("div");
+  const list=[
+    ["Flow",row.flow_id || "—"],
+    ["Event",row.event_id || String(row.id || "—")],
+    ["Rule",row.rule_id || "Not supplied"],
+    ["Resource",nativeResourceId(row) || "Not supplied"],
+    ["Reporting peer",peerById.get(row.reporter_id)?.name || row.reporter_id || "Unknown"],
+    ["Policy evidence",policy.reason],
+    ["Router evidence",router.reason]
+  ];
+  for(const [label,value] of list) {
+    const line=document.createElement("div");
+    line.textContent=label+": "+String(value || "—");
+    info.append(line);
+  }
+  technical.append(info);
+  container.append(technical);
+  return container;
+}
+async function loadNativeTimeline(row) {
+  const identity=nativeFlowIdentity(row);
+  if(!identity || nativeTimelineCache.has(identity))return;
+  // Mark as pending before await, so multiple clicks cannot duplicate queries.
+  nativeTimelineCache.set(identity,{flows:[],total:0,pending:true});
+  try {
+    const query=new URLSearchParams({
+      filtered:"1",reporters:row.reporter_id,flow_id:row.flow_id,
+      limit:"25",page:"0",sort:"time",order:"desc"
+    });
+    const result=await req("api/traffic/native?"+query.toString());
+    if(!result.available || !Array.isArray(result.flows))
+      throw Error(result.note || "receiver not available");
+    nativeTimelineCache.set(identity,{flows:result.flows,
+      total:Number(result.total || result.flows.length)});
+  }catch(err) {
+    nativeTimelineCache.set(identity,{flows:[],total:0,error:String(err.message || err).slice(0,160)});
+  }
+  if(nativeExpanded.size)renderNativeRows();
 }
 function nativeTrafficCell(row) {
   const box = document.createElement("span");
@@ -485,47 +632,6 @@ function nativeRouterCell(row) {
   empty.title=resolved.reason;
   return empty;
 }
-function nativeDetails(row) {
-  const router=resolveNativeRouter(row);
-  const policy=resolveNativePolicy(row);
-  const wrap=document.createElement("div");
-  wrap.className="native-details";
-  const header=document.createElement("strong");
-  header.textContent="Traffic event details";
-  wrap.append(header);
-  const grid=document.createElement("dl");
-  grid.className="native-details-grid";
-  const item=(label,value)=> {
-    const entry=document.createElement("div");
-    const dt=document.createElement("dt");dt.textContent=label;
-    const dd=document.createElement("dd");dd.textContent=String(value??"—");
-    entry.append(dt,dd);grid.append(entry);
-  };
-  const friendly=id=>eventRefCandidates(id).at(-1)||"—";
-  item("Reported by",peerById.get(row.reporter_id)?.name||row.reporter_id||"Unknown");
-  item("Flow direction",Number(row.direction)===1?"Incoming":Number(row.direction)===2?"Outgoing":"Unknown");
-  item("Router",router.peerId ?
-    (peerById.get(router.peerId)?.name||router.peerId) :
-    router.state==="p2p" ? "Not applicable (P2P)" :
-    router.state==="ambiguous" ? "Cannot identify uniquely" : "Not identified");
-  item("Router evidence",router.reason);
-  item("Network resource",router.resourceName||friendly(nativeResourceId(row)));
-  item("Policy",policy.state==="matched" ? policy.policyName||policy.policyId :
-    policy.state==="missing" ? "Not reported by this peer" : "Not identified");
-  item("Policy rule",policy.state==="matched" ? policy.ruleName||policy.ruleId||"Policy-level ID" : "—");
-  item("Policy action",policy.action||"Not available");
-  item("Policy evidence",policy.reason);
-  item("Raw rule ID",policy.raw||"Not supplied");
-  item("Flow ID",row.flow_id||"—");
-  item("Event ID",row.event_id||"—");
-  item("Event source",row.source||"netbird_native");
-  wrap.append(grid);
-  const caveat=document.createElement("p");
-  caveat.className="native-details-caveat";
-  caveat.textContent="The displayed router and policy names come from current NetBird configuration. The native event does not contain a historical configuration snapshot.";
-  wrap.append(caveat);
-  return wrap;
-}
 
 let nativeRowsLoaded = [];
 let nativePage = 0;
@@ -549,38 +655,15 @@ function renderNativeRows() {
       [nativeTrafficCell(row),"native-traffic-cell"],
       [nativeRouterCell(row),"native-router-cell"]
     ];
-    const eventKey=String(row.reporter_id||"")+":"+String(row.event_id||row.id||row.flow_id||"");
-    for (const [i,entry] of columns.entries()) {
-      const [value,className]=entry;
-      const td = document.createElement("td");
-      td.className = className;
-      if (typeof value === "string") td.textContent = value;
+    if(nativeExpanded.has(nativeEventKey(row)))tr.classList.add("native-row-expanded");
+    for (const [value,className] of columns) {
+      const td=document.createElement("td");
+      td.className=className;
+      if(typeof value==="string")td.textContent=value;
       else td.append(value);
-      if (i === 1) {
-        const toggle=document.createElement("button");
-        toggle.type="button";
-        toggle.className="native-event-expand";
-        toggle.dataset.eventKey=eventKey;
-        toggle.setAttribute("aria-label","Show event details and NetBird Policy");
-        toggle.setAttribute("aria-expanded",String(nativeExpanded.has(eventKey)));
-        toggle.append(lucideIcon("chevron-down",14));
-        const title=document.createElement("span");
-        title.textContent="Details";
-        toggle.append(title);
-        td.append(toggle);
-      }
       tr.append(td);
     }
     fragment.append(tr);
-    if(nativeExpanded.has(eventKey)) {
-      const detailsRow=document.createElement("tr");
-      detailsRow.className="native-expanded-row";
-      const cell=document.createElement("td");
-      cell.colSpan=7;
-      cell.append(nativeDetails(row));
-      detailsRow.append(cell);
-      fragment.append(detailsRow);
-    }
   }
   if (!nativeRowsLoaded.length) fragment.append(makeEmptyRow(7,
     "No recorded traffic events match the selected filters."));
@@ -816,11 +899,14 @@ $("native-rows").addEventListener("click", event => {
   const key=toggle.dataset.eventKey;
   if(nativeExpanded.has(key))nativeExpanded.delete(key);
   else nativeExpanded.add(key);
+  const row=nativeRowsLoaded.find(item=>nativeEventKey(item)===key);
   renderNativeRows();
   const replacement=Array.from($("native-rows").querySelectorAll("button[data-event-key]"))
     .find(b=>b.dataset.eventKey===key);
-  replacement?.focus();
+  replacement?.focus({preventScroll:true});
+  if(nativeExpanded.has(key) && row)void loadNativeTimeline(row);
 });
+
 window.addEventListener("message", event => {
   if(event.origin!==location.origin || event.source!==window.parent ||
      event.data?.source!=="shirobird-policy-directory" ||
