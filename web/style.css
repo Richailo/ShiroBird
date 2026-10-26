@@ -581,3 +581,8 @@ body.embedded .native-overview,body.embedded .local-sensor-stats{max-width:100%;
   .native-events-table .native-event-cell{min-width:220px;max-width:310px}
   .native-events-table .native-event{max-width:290px}
 }
+
+/* Override the legacy event-cell child selector when the new inline
+   evidence row contains multiple compact facts. */
+.native-events-table .native-event>div.native-inline-evidence{
+  display:flex;flex-direction:row;flex-wrap:wrap;align-items:baseline}
