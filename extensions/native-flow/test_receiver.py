@@ -214,6 +214,27 @@ class ReceiverTests(unittest.TestCase):
         self.assertEqual(self.store.search_events(page=0,limit=25,
                          query="100%")["total"],0)
 
+    def test_exact_flow_history_never_merges_other_flows(self):
+        identity = "77" * 16
+        for i in range(3):
+            e = sample()
+            e.event_id = bytes([65+i]) * 16
+            e.flow_fields.flow_id = bytes.fromhex(identity if i<2 else "88"*16)
+            e.timestamp.seconds = int(time.time()) - 60*(2-i)
+            e.window_start.seconds = e.timestamp.seconds
+            e.window_end.seconds = e.timestamp.seconds
+            self.store.save(r.event_record(e, "peer-A" if i!=1 else "peer-B"))
+        filtered=self.store.search_events(flow_id=identity, reporters=("peer-A",),
+                                          limit=25, sort="time", order="asc")
+        self.assertEqual(filtered["total"],1)
+        self.assertEqual(filtered["flows"][0]["reporter_id"],"peer-A")
+        self.assertEqual(filtered["flows"][0]["flow_id"],identity)
+        self.assertEqual(self.store.search_events(flow_id=identity,limit=25)["total"],2)
+        with self.assertRaises(ValueError):
+            self.store.search_events(flow_id="aa'* OR 1=1 --",limit=25)
+        with self.assertRaises(ValueError):
+            self.store.search_events(flow_id="ff"*16+"aa",limit=25)
+
     def test_http_full_history_query_and_user_filter(self):
         event=sample()
         self.store.save(r.event_record(event,"peer-A"))
