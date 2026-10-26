@@ -601,8 +601,8 @@ class Handler(BaseHTTPRequestHandler):
             if qs.get("filtered", ["0"])[0] == "1":
                 filters = {k: qs.get(k, [""])[0] for k in
                            ("before","limit","start","end","q","protocol",
-                            "state","reporters","ips")}
-                if any(len(v) > (1024 if k in ("reporters","ips") else 125)
+                            "state","reporters","ips","search_ips","page","sort","order")}
+                if any(len(v) > (1024 if k in ("reporters","ips","search_ips") else 125)
                        for k,v in filters.items()):
                     return self.reply(400, {"error":"traffic filters too long"})
                 return self.reply(200, native_flow.snapshot(filters=filters))
