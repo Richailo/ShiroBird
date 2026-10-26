@@ -12,8 +12,10 @@ assert.ok(!html.includes('id="flow-groups"'),"old event renderer removed");
 assert.ok(!html.includes('id="total"'),"ambiguous legacy total removed");
 assert.ok(html.indexOf('id="native-stat-total"')<html.indexOf('id="native-table"'),
   "real counters appear above native event table");
-assert.ok(html.indexOf('id="flow-starts"')<html.indexOf('id="native-table"'),
-  "local metrics remain separate and move above the table");
+assert.ok(html.indexOf('id="flow-starts"')>html.indexOf('id="native-table"'),
+  "legacy collector widgets are retained only in a hidden compatibility section");
+assert.match(html,/<div id="legacy-local-observability" hidden aria-hidden="true">/,
+  "Local monitoring is not visible in Traffic Flow");
 assert.ok(!app.includes('$("flow-groups")'),"renderer cannot access removed DOM");
 assert.ok(!app.includes('$("total")'),"old conntrack counts not shown as native");
 const start=app.indexOf("function renderNativeSummary(data) {");
