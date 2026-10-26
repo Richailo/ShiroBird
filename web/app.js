@@ -45,12 +45,19 @@ function status(value, live = false) {
   $("connection").className = live ? "status live" : "status";
 }
 function showLogin() {
-  $("auth").classList.remove("hidden");
   if (embedded) {
+    // NetBird owns authentication in embedded mode. Never reveal a second
+    // ShiroBird login screen, including on transient API 401 responses.
+    $("auth").hidden = true;
+    $("auth").hidden = true;
+    $("auth").classList.add("hidden");
     $("form").hidden = true;
-    $("auth").dataset.netbird = "1";
     status("Waiting for NetBird authentication");
-  } else status("Sign in required");
+  } else {
+    $("auth").hidden = false;
+    $("auth").classList.remove("hidden");
+    status("Sign in required");
+  }
   if (stream) stream.close();
   stream = null;
 }
