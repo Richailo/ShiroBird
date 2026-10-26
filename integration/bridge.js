@@ -242,7 +242,9 @@
           ip: String(peer.ip || "").slice(0, 64),
           ipv6: String(peer.ipv6 || "").slice(0, 64),
           connected: Boolean(peer.connected),
-          os: String(peer.os || "").slice(0, 80)
+          // NetBird's API reports OS as a string; do not guess from hostname.
+          os: (typeof peer.os === "string" ? peer.os :
+            typeof peer.os?.name === "string" ? peer.os.name : "").slice(0, 80)
         }));
       directoryFetchedAt = Date.now();
       sendPeersToFrame();
