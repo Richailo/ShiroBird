@@ -2,16 +2,39 @@
 const $ = id => document.getElementById(id);
 const query = new URLSearchParams(location.search);
 const embedded = query.has("embedded");
+// The parent frame passes its active theme in the URL, avoiding an initial
+// light-mode flash before the first postMessage is received.
+const initialTheme = query.get("theme");
+if (embedded && (initialTheme === "dark" || initialTheme === "light")) {
+  document.documentElement.classList.toggle("dark", initialTheme === "dark");
+  document.documentElement.classList.toggle("light", initialTheme === "light");
+}
 const page = query.get("view") === "siem-integration" ? "siem-integration" : "traffic-flow";
 document.body.classList.toggle("embedded", embedded);
 document.body.dataset.view = page;
 $("traffic-view").hidden = page !== "traffic-flow";
 $("siem-view").hidden = page !== "siem-integration";
 
+const NETBIRD_THEME_KEYS = new Set([
+  "--page", "--surface", "--field", "--sidebar", "--muted", "--text",
+  "--stroke", "--hover", "--primary", "--soft", "--accent", "--table-head",
+  "--button-secondary", "--input-border", "--placeholder", "--success", "--danger"
+]);
 window.addEventListener("message", event => {
   if (event.origin !== location.origin || !event.data || event.data.source !== "shirobird-theme") return;
-  document.documentElement.classList.toggle("dark", Boolean(event.data.dark));
-  document.documentElement.classList.toggle("light", !event.data.dark);
+  const dark = event.data.dark === true;
+  document.documentElement.classList.toggle("dark", dark);
+  document.documentElement.classList.toggle("light", !dark);
+  // Accept only the same-origin parent and a fixed list of hex-only colors.
+  // Do not allow arbitrary injected CSS declarations through postMessage.
+  if (event.source !== window.parent || !event.data.palette || typeof event.data.palette !== "object")
+    return;
+  for (const [name, value] of Object.entries(event.data.palette)) {
+    if (NETBIRD_THEME_KEYS.has(name) && typeof value === "string" &&
+        /^#[0-9a-f]{3,8}$/i.test(value)) {
+      document.documentElement.style.setProperty(name, value);
+    }
+  }
 });
 
 let flows = [], stream = null, lastId = 0;
