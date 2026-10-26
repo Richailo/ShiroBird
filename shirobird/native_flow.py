@@ -59,7 +59,7 @@ def snapshot(after=0, limit=200, filters=None, query=None):
             page = get("/api/native/flows?after=" + str(max(0, int(after))) +
                        "&limit=" + str(min(1000, max(1, int(limit)))))
         return {"configured": True, "available": True, "status": status,
-                "flows": page["flows"], "next_cursor": page["next_cursor"],
+                "flows": page["flows"], "next_cursor": page.get("next_cursor"),
                 "page": page.get("page",0), "snapshot": page.get("snapshot"),
                 "has_more": page.get("has_more", False),
                 "total": page.get("total", len(page["flows"])),
