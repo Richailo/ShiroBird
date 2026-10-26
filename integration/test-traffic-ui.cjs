@@ -101,7 +101,7 @@ assert.equal(verified.action,"accept");
 const evidence=helper.nativeInlineEvidence({...routed,rule_id:hex("rule1"),
   flow_id:"abc123",event_id:"event123"});
 assert.match(treeText(evidence),/SSH access/);
-assert.match(treeText(evidence),/current NetBird configuration/);
+assert.match(treeText(evidence),/NetBird configuration/);
 const selected={...routed,flow_id:"a".repeat(32),
   event_id:"b".repeat(32),num_of_drops:0,num_of_ends:0};
 const prior={...selected,event_id:"c".repeat(32),num_of_starts:0,
