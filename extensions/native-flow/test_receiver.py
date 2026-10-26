@@ -227,6 +227,14 @@ class ReceiverTests(unittest.TestCase):
             with urlopen(req,timeout=5) as response:
                 obj=json.load(response)
             self.assertEqual(obj["total"],1)
+            # Regression: older dashboard sent empty before=, previously
+            # HTTP 400 was misreported as an offline event receiver.
+            blank=Request(url+"/api/native/query?before=&limit=25&start=0&end=0&q=&protocol=0",
+                          headers=headers)
+            with urlopen(blank,timeout=5) as response:
+                blank_page=json.load(response)
+            self.assertEqual(blank_page["total"],1)
+            self.assertEqual(len(blank_page["flows"]),1)
             self.assertFalse(obj["has_more"])
             self.assertEqual(len(obj["flows"]),1)
             with self.assertRaises(HTTPError) as fail:
