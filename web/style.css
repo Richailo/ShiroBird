@@ -374,3 +374,5 @@ body.embedded .siem-grid .panel, body.embedded .flow-analytics-grid .panel {
   .native-table-actions input{width:100%;min-width:0}
   .native-events-table{min-width:940px}
 }
+
+.native-event-mixed{background:#f5a623}
