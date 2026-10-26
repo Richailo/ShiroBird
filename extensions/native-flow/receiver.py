@@ -349,6 +349,7 @@ def make_http_server(store, token, address=("127.0.0.1", 0)):
                     params=parse_qs(route.query,keep_blank_values=True)
                     def number_param(name,default=0):
                         value=params.get(name,[str(default)])[0]
+                        if not value: return default
                         if len(value)>15: raise ValueError("number too long")
                         return int(value)
                     result=store.search_events(
