@@ -325,6 +325,10 @@ function nativeSeverity(row) {
     ends > 0 ? "ended" : "unknown";
 }
 function nativeEventDescription(row) {
+  if(row.grouped && Number(row.report_count)>1) {
+    return fmt(row.report_count)+" recorded reports · "+
+      fmt(row.flow_count)+" distinct flow IDs (5-minute activity)";
+  }
   const reporter = peerById.get(row.reporter_id)?.name || row.reporter_id || "Peer";
   const severity = nativeSeverity(row);
   const direction = Number(row.direction);
@@ -338,25 +342,33 @@ function nativeEventDescription(row) {
 }
 // Inline Traffic Events timeline: real reports sharing an exact reporter and flow ID.
 function nativeEventKey(row) {
+  if(row.grouped && row.activity_key)return "activity:"+row.activity_key;
   return String(row.reporter_id || "") + ":" + String(row.event_id || row.id || "");
 }
 function nativeFlowIdentity(row) {
+  if(row.grouped && row.activity_key)return "activity:"+row.activity_key;
   const id = String(row.flow_id || "");
   return /^[0-9a-f]{32}$/.test(id) && typeof row.reporter_id === "string" &&
     row.reporter_id.length > 0 ? row.reporter_id + ":" + id : "";
 }
 const nativeTimelineCache = new Map();
 function sameNativeConnection(a, b) {
-  return Boolean(nativeFlowIdentity(a)) &&
+  return !a.grouped && !b.grouped && Boolean(nativeFlowIdentity(a)) &&
     nativeFlowIdentity(a) === nativeFlowIdentity(b) &&
     ["src", "dst", "protocol", "sport", "dport"].every(k =>
       String(a[k] ?? "") === String(b[k] ?? ""));
 }
 function nativeTimelineRows(row) {
-  const cache = nativeTimelineCache.get(nativeFlowIdentity(row));
+  const cache=nativeTimelineCache.get(nativeFlowIdentity(row));
+  if(row.grouped) {
+    if(!cache || !Array.isArray(cache.flows))return [row];
+    // Summary first, followed by actual separate raw records. A grouped
+    // service interval is NOT one persistent network connection.
+    return [row,...cache.flows];
+  }
   if (!cache || !Array.isArray(cache.flows)) return [row];
-  const matching = cache.flows.filter(e => sameNativeConnection(row,e));
-  if (!matching.some(e => nativeEventKey(e) === nativeEventKey(row))) matching.push(row);
+  const matching=cache.flows.filter(e=>sameNativeConnection(row,e));
+  if(!matching.some(e=>nativeEventKey(e)===nativeEventKey(row)))matching.push(row);
   matching.sort((a,b)=>Number(a.window_end || a.ts || 0)-Number(b.window_end || b.ts || 0) ||
     Number(a.id || 0)-Number(b.id || 0));
   return matching;
@@ -370,7 +382,7 @@ function nativeEventCell(row) {
   timeline.className="native-inline-timeline" + (opened ? " native-timeline-open" : "");
   const reports=opened ? nativeTimelineRows(row) : [row];
   for(const report of reports) {
-    const selected=nativeEventKey(report)===key;
+    const selected=report===row || (!row.grouped && nativeEventKey(report)===key);
     const item=document.createElement("div");
     item.className="native-timeline-item"+(selected ? " native-current-item" : "");
     const dot=document.createElement("span");
@@ -381,7 +393,10 @@ function nativeEventCell(row) {
     if(opened) {
       const timestamp=document.createElement("span");
       timestamp.className="native-timeline-date";
-      timestamp.textContent=date(Number(report.window_end || report.ts || 0));
+      timestamp.textContent=report.grouped ?
+        date(Number(report.activity_start || report.ts || 0))+" – "+
+          date(Number(report.activity_end || report.ts || 0)) :
+        date(Number(report.window_end || report.ts || 0));
       body.append(timestamp);
     }
     const line=document.createElement("div");
@@ -407,6 +422,11 @@ function nativeEventCell(row) {
       if(Number(report.num_of_starts))counts.push(fmt(report.num_of_starts)+" starts");
       if(Number(report.num_of_ends))counts.push(fmt(report.num_of_ends)+" ends");
       if(Number(report.num_of_drops))counts.push(fmt(report.num_of_drops)+" drops");
+      if(row.grouped && !selected) {
+        const policy=resolveNativePolicy(report);
+        counts.push("Flow "+String(report.flow_id||"unknown").slice(0,8));
+        if(policy.state==="matched")counts.push("Policy: "+(policy.policyName||policy.policyId));
+      }
       if(counts.length) {
         const meta=document.createElement("span");
         meta.className="native-timeline-counts";
@@ -423,17 +443,30 @@ function nativeEventCell(row) {
     const note=document.createElement("div");
     note.className="native-timeline-hint";
     if(!identity)note.textContent="A verified flow ID was not reported; related events cannot be linked.";
-    else if(!cache)note.textContent="Loading recorded flow history…";
+    else if(!cache)note.textContent=row.grouped?"Loading individual recorded reports…":"Loading recorded flow history…";
     else if(cache.error)note.textContent="History unavailable: "+cache.error;
     else if(cache.total > cache.flows.length)
-      note.textContent="Showing up to "+cache.flows.length+" latest reports for this flow.";
-    else if(reports.length===1)note.textContent="No other recorded reports for this exact connection.";
+      note.textContent="Showing "+cache.flows.length+" of "+cache.total+
+        " raw reports. Use All native reports to inspect more.";
+    else if(reports.length===1 && !row.grouped)
+      note.textContent="No other recorded reports for this exact connection.";
     if(note.textContent)root.append(note);
     root.append(nativeInlineEvidence(row));
   }
   return root;
 }
 function nativeInlineEvidence(row) {
+  if(row.grouped) {
+    const span=document.createElement("div");
+    span.className="native-inline-evidence";
+    const info=document.createElement("span");
+    info.textContent="Activity grouping only: "+fmt(row.report_count)+
+      " independent reports, "+fmt(row.flow_count)+
+      " flow IDs. Policies, router decisions and bytes remain per reporting peer;"+
+      " view raw entries for individual evidence.";
+    span.append(info);
+    return span;
+  }
   const policy=resolveNativePolicy(row),router=resolveNativeRouter(row);
   const container=document.createElement("div");
   container.className="native-inline-evidence";
@@ -489,10 +522,12 @@ function nativeInlineEvidence(row) {
 async function loadNativeTimeline(row) {
   const identity=nativeFlowIdentity(row);
   if(!identity || nativeTimelineCache.has(identity))return;
-  // Mark as pending before await, so multiple clicks cannot duplicate queries.
   nativeTimelineCache.set(identity,{flows:[],total:0,pending:true});
   try {
-    const query=new URLSearchParams({
+    const query=new URLSearchParams(row.grouped?{
+      filtered:"1",activity_key:row.activity_key,
+      limit:"200",page:"0",sort:"time",order:"asc"
+    }:{
       filtered:"1",reporters:row.reporter_id,flow_id:row.flow_id,
       limit:"25",page:"0",sort:"time",order:"desc"
     });
@@ -502,7 +537,8 @@ async function loadNativeTimeline(row) {
     nativeTimelineCache.set(identity,{flows:result.flows,
       total:Number(result.total || result.flows.length)});
   }catch(err) {
-    nativeTimelineCache.set(identity,{flows:[],total:0,error:String(err.message || err).slice(0,160)});
+    nativeTimelineCache.set(identity,{flows:[],total:0,
+      error:String(err.message || err).slice(0,160)});
   }
   if(nativeExpanded.size)renderNativeRows();
 }
@@ -683,7 +719,7 @@ function renderNativePagination() {
   const first=nativeTotal ? nativePage*size+1 : 0;
   const last=Math.min(nativeTotal,(nativePage+1)*size);
   $("native-results-count").textContent=first+"–"+last+" of "+
-    nativeTotal.toLocaleString()+" events";
+    nativeTotal.toLocaleString()+($("native-view").value==="compact"?" activity groups":" raw reports");
   $("native-page-label").textContent="Page "+(nativePage+1);
   $("native-prev").disabled=nativePage===0;
   $("native-next").disabled=last>=nativeTotal;
@@ -715,6 +751,7 @@ function nativeNameIPs(search) {
 function renderNativeFilterChips() {
   const target=$("native-active-filters");
   const chips=[];
+  if($("native-view").value==="raw")chips.push(["View","All native reports"]);
   if ($("native-search").value.trim()) chips.push(["Search", $("native-search").value.trim()]);
   if ($("native-range").value!=="172800") chips.push(["Time", $("native-range").selectedOptions[0].text]);
   if ($("native-user").value) chips.push(["User", $("native-user").selectedOptions[0].text]);
@@ -792,7 +829,8 @@ async function refreshNative(resetPage=false) {
     limit:$("native-page-size").value,
     sort:nativeSort,order:nativeDescending?"desc":"asc",
     protocol:$("native-protocol").value,
-    state:$("native-event-type").value});
+    state:$("native-event-type").value,
+    compact:$("native-view").value==="compact"?"1":"0"});
   let userData;
   try {
     const time=nativeTimeFilters();
@@ -836,7 +874,11 @@ async function refreshNative(resetPage=false) {
     if(version===nativeRequestVersion)$("native-refresh").disabled=false;
   }
 }
-function nativeRefilter() {return refreshNative(true);}
+function nativeRefilter() {
+  nativeExpanded.clear();
+  nativeTimelineCache.clear();
+  return refreshNative(true);
+}
 let nativeSearchDelay=null;
 $("native-search").addEventListener("input",()=>{
   clearTimeout(nativeSearchDelay);
@@ -847,7 +889,7 @@ $("native-range").addEventListener("change",()=>{
   void nativeRefilter();
 });
 for(const id of ["native-user","native-protocol","native-event-type","native-page-size",
-                  "native-from","native-to"]) {
+                  "native-from","native-to","native-view"]) {
   $(id).addEventListener("change",()=>{void nativeRefilter()});
 }
 $("native-prev").addEventListener("click",()=>{
@@ -866,6 +908,7 @@ $("native-clear").addEventListener("click",()=>{
   $("native-protocol").value="0";
   $("native-event-type").value="";
   $("native-page-size").value="100";
+  $("native-view").value="compact";
   $("native-from").value="";$("native-to").value="";
   $("native-custom-dates").hidden=true;
   $("native-advanced").hidden=true;
