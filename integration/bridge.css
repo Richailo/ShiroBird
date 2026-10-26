@@ -1,45 +1,59 @@
-/* ShiroBird navigation matches the original NetBird SidebarItem style. */
-#shirobird-nav-link {
-  width: 100%;
-}
-#shirobird-nav-link li {
-  list-style: none;
-}
+/* Same SidebarItem spacing and 18px Lucide chevron as NetBird. */
+#shirobird-nav-link { width: 100%; }
+#shirobird-nav-link li { list-style: none; }
 #shirobird-nav-link button {
   width: 100%;
   display: block;
+  position: relative;
   text-align: left;
   cursor: pointer;
 }
+#shirobird-nav-link .shirobird-item-inner {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
 #shirobird-nav-link .shirobird-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
   min-width: 16px;
-  text-align: center;
-  font-size: 17px;
+  height: 18px;
   line-height: 1;
   color: #7387e3;
+  font-size: 17px;
+  flex-shrink: 0;
+}
+#shirobird-nav-link .shirobird-label {
+  min-width: 0;
+  flex: 1 1 0%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transition: opacity 150ms ease;
 }
 #shirobird-nav-link .shirobird-chevron {
-  margin-left: auto;
-  font-size: 19px;
-  line-height: 1;
-  opacity: .72;
-  transition: transform .15s ease;
+  display: block;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  transition: opacity 150ms ease;
 }
 #shirobird-nav-link.shirobird-expanded .shirobird-chevron {
   transform: rotate(180deg);
 }
-#shirobird-nav-link .shirobird-submenu {
-  padding: 0;
-  margin: 0;
-}
-#shirobird-nav-link .shirobird-submenu[hidden] {
-  display: none!important;
-}
+#shirobird-nav-link .shirobird-submenu { padding: 0; margin: 0; }
+#shirobird-nav-link .shirobird-submenu[hidden] { display: none !important; }
 #shirobird-nav-link .shirobird-child-button {
-  padding-left: 28px!important;
-  margin-top: 3px;
+  padding-left: 28px !important;
+  padding-right: 8px !important;
+  margin-top: 4px;
   margin-bottom: 2px;
 }
+#shirobird-nav-link .shirobird-child-dot { display: none; }
 #shirobird-nav-link .shirobird-selected,
 #shirobird-nav-link .shirobird-selected:hover {
   background: #e5e7eb;
@@ -50,6 +64,40 @@ html.dark #shirobird-nav-link .shirobird-selected:hover {
   background: #292a30;
   color: #fff;
 }
+/* Native NetBird: collapsed is md:w-[64px], hover reveals the labels.
+   Use opacity (rather than display:none) to keep icon/text positions stable. */
+#shirobird-nav-link.shirobird-compact .shirobird-label,
+#shirobird-nav-link.shirobird-compact .shirobird-chevron {
+  opacity: 0;
+  pointer-events: none;
+}
+[data-navigation]:hover #shirobird-nav-link.shirobird-compact .shirobird-label,
+[data-navigation]:hover #shirobird-nav-link.shirobird-compact .shirobird-chevron {
+  opacity: 1;
+  pointer-events: auto;
+}
+#shirobird-nav-link.shirobird-compact .shirobird-child-dot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  pointer-events: none;
+}
+[data-navigation]:hover #shirobird-nav-link.shirobird-compact .shirobird-child-dot {
+  display: none;
+}
+@media (max-width: 767px) {
+  #shirobird-nav-link.shirobird-compact .shirobird-label,
+  #shirobird-nav-link.shirobird-compact .shirobird-chevron {
+    opacity: 1;
+  }
+}
+
 #shirobird-integrated-view {
   position: fixed;
   inset: 0 0 0 auto;
