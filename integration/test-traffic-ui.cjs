@@ -101,7 +101,7 @@ assert.equal(verified.action,"accept");
 const details=helper.nativeDetails({...routed,rule_id:hex("rule1"),
   flow_id:"flow123",event_id:"event123"});
 assert.match(treeText(details),/SSH access/);
-assert.match(treeText(details),/Current NetBird configuration/);
+assert.match(treeText(details),/current NetBird configuration/);
 helper.setDirectory({complete:true,policies:[],routes:[
   {id:"route1",peer:"peer1",enabled:true,peer_groups:[]},
   {id:"route1",peer:"peer2",enabled:true,peer_groups:[]}
