@@ -248,12 +248,64 @@
       sendPeersToFrame();
     } catch (_) { /* Optional peer enrichment; fail with bare IP. */ }
   }
+  // Tailwind's native NetBird tokens live in the parent document. The iframe
+  // does not inherit its CSS variables, so forward only verified color tokens.
+  // No OIDC/session information enters this theme message.
+  function netbirdPalette(dark) {
+    const styles = window.getComputedStyle(document.documentElement);
+    const token = (name, fallback) => {
+      const value = styles.getPropertyValue("--color-" + name).trim();
+      return /^#[0-9a-f]{3,8}$/i.test(value) ? value : fallback;
+    };
+    if (dark) return {
+      "--page": token("nb-gray", "#181a1d"),
+      "--surface": token("nb-gray-940", "#1c1e21"),
+      "--field": token("nb-gray-900", "#2e3238"),
+      "--sidebar": token("nb-gray", "#181a1d"),
+      "--muted": token("nb-gray-300", "#a3adb5"),
+      "--text": token("nb-gray-100", "#e4e7e9"),
+      "--stroke": token("nb-gray-900", "#2e3238"),
+      "--hover": token("nb-gray-920", "#25282d"),
+      "--primary": token("netbird", "#f68330"),
+      "--soft": token("nb-gray-920", "#25282d"),
+      "--accent": token("netbird", "#f68330"),
+      "--table-head": token("nb-gray-900", "#2e3238"),
+      "--button-secondary": token("nb-gray-920", "#25282d"),
+      "--input-border": token("nb-gray-700", "#474e57"),
+      "--placeholder": token("nb-gray-350", "#8f9ca8"),
+      "--success": token("green-400", "#31c48d"),
+      "--danger": token("red-400", "#f98080")
+    };
+    return {
+      "--page": token("gray-50", "#f9fafb"),
+      "--surface": "#ffffff",
+      "--field": "#ffffff",
+      "--sidebar": token("gray-50", "#f9fafb"),
+      "--muted": token("gray-500", "#6b7280"),
+      "--text": token("gray-900", "#111827"),
+      "--stroke": token("gray-200", "#e5e7eb"),
+      "--hover": token("gray-100", "#f3f4f6"),
+      "--primary": token("netbird", "#f68330"),
+      "--soft": token("gray-100", "#f3f4f6"),
+      "--accent": token("netbird-600", "#e55311"),
+      "--table-head": token("gray-100", "#f3f4f6"),
+      "--button-secondary": "#ffffff",
+      "--input-border": token("gray-300", "#d1d5db"),
+      "--placeholder": token("gray-400", "#9ca3af"),
+      "--success": token("green-600", "#057a55"),
+      "--danger": token("red-700", "#c81e1e")
+    };
+  }
   function applyTheme() {
-    const frame = document.querySelector("#" + VIEW_ID + " iframe");
+    const dark = document.documentElement.classList.contains("dark");
+    const palette = netbirdPalette(dark);
+    const panel = document.getElementById(VIEW_ID);
+    if (panel) panel.style.backgroundColor = palette["--page"];
+    const frame = panel && panel.querySelector("iframe");
+    if (frame) frame.style.backgroundColor = palette["--page"];
     if (frame && frame.contentWindow) {
       frame.contentWindow.postMessage({
-        source: "shirobird-theme",
-        dark: document.documentElement.classList.contains("dark")
+        source: "shirobird-theme", dark, palette
       }, location.origin);
     }
   }
@@ -263,7 +315,8 @@
     if (!panel || !page) return;
     const frame = panel.querySelector("iframe");
     if (frame.hidden) return;
-    const url = "/shirobird/?embedded=1&view=" + encodeURIComponent(page.slug);
+    const url = "/shirobird/?embedded=1&view=" + encodeURIComponent(page.slug) +
+      "&theme=" + (document.documentElement.classList.contains("dark") ? "dark" : "light");
     if (frame.getAttribute("src") !== url) frame.setAttribute("src", url);
     else applyTheme();
   }
