@@ -342,6 +342,7 @@ class Store:
                 "id":row["last_id"],"grouped":True,"activity_key":encoded,
                 "report_count":row["report_count"],"flow_count":row["flow_count"],
                 "activity_start":row["first_time"],"activity_end":row["last_time"],
+                "service_port":row["svc_port"],
                 "num_of_starts":row["starts"],"num_of_ends":row["ends"],
                 "num_of_drops":row["drops"],"rx_bytes":row["rx_bytes"],
                 "tx_bytes":row["tx_bytes"]
