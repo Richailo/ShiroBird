@@ -28,6 +28,17 @@
           <a href="api/export.ndjson" class="button secondary">Export JSONL</a>
         </div>
       </div>
+      <section class="panel" aria-label="Native peer reports">
+        <div class="panelhead"><div><h2>Native peer reports · P2P and routed</h2>
+          <p id="native-note">Checking optional receiver…</p></div>
+          <button id="native-next" class="secondary" type="button" hidden>Next reports</button>
+        </div>
+        <div class="tablewrap" id="native-table" hidden><table>
+          <thead><tr><th>Time</th><th>Reporting peer</th><th>Source</th><th>Destination</th>
+          <th>Protocol / direction</th><th>Starts</th><th>Ends</th><th>Drops</th><th>Bytes</th><th>Reported rule</th></tr></thead>
+          <tbody id="native-rows"></tbody>
+        </table></div>
+      </section>
       <div class="flow-tools">
         <label>Time range
           <select id="flow-window">

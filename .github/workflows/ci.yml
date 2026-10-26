@@ -61,3 +61,52 @@ jobs:
       - name: Validate Windows WFP parser and PowerShell collector syntax
         shell: powershell
         run: .\\windows\\test.ps1
+
+  native-flow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build independent native receiver
+        run: docker build -t shirobird-native-flow:test extensions/native-flow
+      - name: Protocol, persistence, authentication and API tests
+        run: docker run --rm --network none shirobird-native-flow:test python -m unittest -v
+
+  management-adapter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.7'
+          cache: false
+      - name: Fetch and verify pinned public NetBird source
+        run: |
+          curl --fail --location --retry 3 https://codeload.github.com/netbirdio/netbird/tar.gz/refs/tags/v0.81.3 -o "$RUNNER_TEMP/netbird.tar.gz"
+          echo "a06c0c3ffc84a78a5ee019641988cfe0ea38ea980609535f66dd4ae82929daed  $RUNNER_TEMP/netbird.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/netbird.tar.gz" -C "$RUNNER_TEMP"
+      - name: Validate guarded preparation and apply isolated hooks
+        run: |
+          SHIROBIRD_NETBIRD_ARCHIVE="$RUNNER_TEMP/netbird.tar.gz" python -m unittest discover -s extensions/management-adapter -v
+          python extensions/management-adapter/prepare.py --source-dir "$RUNNER_TEMP/netbird-0.81.3"
+          mkdir "$RUNNER_TEMP/netbird-0.81.3/flow/shirobirdcompat"
+          cp extensions/management-adapter/native_client_probe.go "$RUNNER_TEMP/netbird-0.81.3/flow/shirobirdcompat/main.go"
+      - name: Race tests and real management package compilation
+        env:
+          GOMAXPROCS: '2'
+        run: |
+          cd "$RUNNER_TEMP/netbird-0.81.3"
+          gofmt -w management/server/shirobirdflow/*.go management/internals/shared/grpc/conversion.go management/internals/shared/grpc/components_envelope_response.go management/internals/shared/grpc/token_mgr.go flow/shirobirdcompat/main.go
+          SHIROBIRD_TEST_TOKEN_OUTPUT="$PWD/adapter-test-token.json" go test -p 1 -race -v ./management/server/shirobirdflow
+          go test -p 1 -run '^$' ./management/internals/shared/grpc
+          CGO_ENABLED=0 go build -p 1 -o native-client-probe ./flow/shirobirdcompat
+          CGO_ENABLED=1 go build -p 1 -o netbird-server ./combined
+      - name: Official flow client with Go-issued credential against Python receiver
+        run: |
+          docker build -t shirobird-native-flow:adapter-test extensions/native-flow
+          docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges --memory 256m \
+            -e PYTHONPATH=/app \
+            -v "$PWD/extensions/management-adapter:/checks:ro" \
+            -v "$RUNNER_TEMP/netbird-0.81.3/native-client-probe:/fixtures/native-client-probe:ro" \
+            -v "$RUNNER_TEMP/netbird-0.81.3/adapter-test-token.json:/fixtures/adapter-test-token.json:ro" \
+            shirobird-native-flow:adapter-test \
+            python /checks/verify_receiver.py /fixtures/native-client-probe /fixtures/adapter-test-token.json

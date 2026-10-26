@@ -1,0 +1,8 @@
+flow-secret
+api-token
+.env
+__pycache__/
+flow_pb2.py
+flow_pb2_grpc.py
+*.sqlite3
+*.jsonl

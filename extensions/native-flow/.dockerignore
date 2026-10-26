@@ -1,0 +1,6 @@
+__pycache__
+.env
+.data
+flow-secret
+api-token
+production-before.json

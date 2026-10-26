@@ -16,7 +16,7 @@ import time
 from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
-from shirobird import netbird_auth
+from shirobird import netbird_auth, native_flow
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = Path(os.getenv("SHIROBIRD_DATA", "/data"))
@@ -585,6 +585,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(400, {"error": "bad query"})
         if route == "/api/stats":
             return self.reply(200, stats())
+        if route == "/api/traffic/native":
+            return self.reply(200, native_flow.snapshot(since, limit))
         if route == "/api/traffic/sensors":
             return self.reply(200, sensor_status())
         if route == "/api/traffic/analytics":

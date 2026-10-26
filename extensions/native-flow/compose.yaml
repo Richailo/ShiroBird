@@ -1,0 +1,26 @@
+# Independent, opt-in extension. Does not reference any NetBird container.
+services:
+  native-flow:
+    build: .
+    image: shirobird-native-flow:local
+    restart: unless-stopped
+    environment:
+      SHIROBIRD_FLOW_SECRET_FILE: /run/secrets/flow_secret
+      SHIROBIRD_NATIVE_API_TOKEN_FILE: /run/secrets/api_token
+      SHIROBIRD_NATIVE_DATA: /data
+    secrets: [flow_secret, api_token]
+    ports: ["127.0.0.1:8084:8084", "127.0.0.1:8085:8085"]
+    volumes: [native_flow_data:/data]
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=16m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    pids_limit: 64
+secrets:
+  flow_secret:
+    file: ./flow-secret
+  api_token:
+    file: ./api-token
+volumes:
+  native_flow_data:
