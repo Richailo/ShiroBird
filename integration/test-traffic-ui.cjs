@@ -6,7 +6,7 @@ const source = fs.readFileSync(path.join(__dirname,"..","web","app.js"),"utf8");
 const html = fs.readFileSync(path.join(__dirname,"..","web","index.html"),"utf8");
 const css = fs.readFileSync(path.join(__dirname,"..","web","style.css"),"utf8");
 const start=source.indexOf('const trafficNS = "http://www.w3.org/2000/svg"');
-const stop=source.indexOf('let nativeCursor = 0;',start);
+const stop=source.indexOf('let nativeRowsLoaded = [];',start);
 assert.ok(start > 0 && stop > start,"native DOM helpers found");
 class Node {
   constructor(tag){this.tagName=tag;this.children=[];this.attributes={};
