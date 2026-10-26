@@ -210,14 +210,14 @@ class Store:
                 args.extend(ips)
             conditions.append("(" + " OR ".join(selections) + ")")
         if query:
-            q = "%" + query.lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+            q = "%" + query.lower().replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%"
             fields = ["reporter", "json_extract(payload,'$.src')",
                       "json_extract(payload,'$.dst')",
                       "CAST(json_extract(payload,'$.sport') AS TEXT)",
                       "CAST(json_extract(payload,'$.dport') AS TEXT)",
                       "json_extract(payload,'$.event_id')",
                       "json_extract(payload,'$.rule_id')"]
-            conditions.append("("+" OR ".join("LOWER("+field+") LIKE ? ESCAPE '\\\\'" for field in fields)+")")
+            conditions.append("("+" OR ".join("LOWER("+field+") LIKE ? ESCAPE '!'" for field in fields)+")")
             args.extend([q]*len(fields))
         where = " WHERE " + " AND ".join(conditions) if conditions else ""
         with closing(self.connect()) as db:
