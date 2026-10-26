@@ -387,3 +387,20 @@ body.embedded .siem-grid .panel, body.embedded .flow-analytics-grid .panel {
 .native-event-inline{display:inline-flex;align-items:center;gap:8px;
   font-weight:500;white-space:nowrap}
 .native-event-inline .native-event-dot{margin-top:0}
+
+/* The actual icon families of the original NetBird dashboard.
+   React-icons uses Font Awesome/Icons8; arrows use Lucide; sorting uses Tabler. */
+.native-library-icon{width:18px;height:18px;display:block;object-fit:contain;
+  flex:0 0 18px}
+.native-library-icon.native-os-logo{filter:grayscale(1) brightness(.65) contrast(.55)}
+:root.dark .native-library-icon.native-os-logo{
+  filter:grayscale(1) brightness(1.25) contrast(.55)
+}
+.native-library-icon:not(.native-os-logo){filter:opacity(.66)}
+:root.dark .native-library-icon:not(.native-os-logo){filter:invert(.75)}
+.native-chip{gap:6px}
+.native-chip svg{height:12px;width:12px;flex:0 0 12px}
+.native-traffic-arrow svg{width:15px;height:15px;stroke-width:2px}
+.native-sort-arrow{display:inline-flex;align-items:center;justify-content:center;
+  width:16px;height:16px;margin-left:5px;font-size:inherit}
+.native-sort-arrow svg{height:16px;width:16px;stroke-width:2px}
