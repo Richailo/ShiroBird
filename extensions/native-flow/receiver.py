@@ -159,13 +159,14 @@ class Store:
         return [{"id": r["id"], "received": r["received"], **json.loads(r["payload"])} for r in rows]
 
     def search_events(self, before=0, limit=100, start=0, end=0, query="",
-                      protocol=0, state="", reporters=(), ips=()):
+                      protocol=0, state="", reporters=(), ips=(), search_ips=(),
+                      page=0, sort="time", order="desc"):
         """Filtered, newest-first cursor pagination over the full durable store.
 
         Filtering is done in SQLite, not just over the browser's first page.
         Event time uses the aggregation window end when available.
         """
-        if limit not in (25, 50, 100, 200) or before < 0 or start < 0 or end < 0:
+        if limit not in (25, 50, 100, 200) or before < 0 or start < 0 or end < 0 or not 0 <= page <= 100000:
             raise ValueError("invalid pagination or time")
         if end and start > end:
             raise ValueError("invalid time range")
@@ -175,9 +176,11 @@ class Store:
             raise ValueError("invalid event filter")
         if len(query) > 120 or any(ord(c) < 32 for c in query):
             raise ValueError("invalid search")
-        if len(reporters) > 60 or len(ips) > 90:
+        if len(reporters) > 60 or len(ips) > 90 or len(search_ips) > 90:
             raise ValueError("too many peer filters")
-        if any(len(x)>128 for x in reporters) or any(len(x)>65 for x in ips):
+        if any(len(x)>128 for x in reporters) or any(len(x)>65 for x in (*ips,*search_ips)):
+            raise ValueError("invalid peer filter")
+        if sort not in ("time","src","dst","event") or order not in ("asc","desc"):
             raise ValueError("invalid peer filter")
         conditions = []
         args = []
@@ -209,28 +212,47 @@ class Store:
                 args.extend(ips)
                 args.extend(ips)
             conditions.append("(" + " OR ".join(selections) + ")")
-        if query:
-            q = "%" + query.lower().replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%"
-            fields = ["reporter", "json_extract(payload,'$.src')",
-                      "json_extract(payload,'$.dst')",
-                      "CAST(json_extract(payload,'$.sport') AS TEXT)",
-                      "CAST(json_extract(payload,'$.dport') AS TEXT)",
-                      "json_extract(payload,'$.event_id')",
-                      "json_extract(payload,'$.rule_id')"]
-            conditions.append("("+" OR ".join("LOWER("+field+") LIKE ? ESCAPE '!'" for field in fields)+")")
-            args.extend([q]*len(fields))
+        if query or search_ips:
+            search_parts = []
+            if query:
+                q = "%" + query.lower().replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%"
+                fields = ["reporter", "json_extract(payload,'$.src')",
+                          "json_extract(payload,'$.dst')",
+                          "CAST(json_extract(payload,'$.sport') AS TEXT)",
+                          "CAST(json_extract(payload,'$.dport') AS TEXT)",
+                          "json_extract(payload,'$.event_id')",
+                          "json_extract(payload,'$.rule_id')"]
+                search_parts.extend("LOWER("+field+") LIKE ? ESCAPE '!'" for field in fields)
+                args.extend([q]*len(fields))
+            if search_ips:
+                placeholders=",".join("?" for _ in search_ips)
+                search_parts.append("(json_extract(payload,'$.src') IN ("+placeholders+
+                                    ") OR json_extract(payload,'$.dst') IN ("+placeholders+"))")
+                args.extend(search_ips)
+                args.extend(search_ips)
+            conditions.append("(" + " OR ".join(search_parts) + ")")
         where = " WHERE " + " AND ".join(conditions) if conditions else ""
         with closing(self.connect()) as db:
             total = db.execute("SELECT COUNT(*) FROM events" + where, args).fetchone()[0]
             cursor = (" WHERE id < ?" if not conditions else " AND id < ?") if before else ""
+            order_expression = {
+                "time": timestamp,
+                "src": "json_extract(payload,'$.src')",
+                "dst": "json_extract(payload,'$.dst')",
+                "event": ("CASE WHEN CAST(COALESCE(json_extract(payload,'$.num_of_drops'),0) AS INTEGER)>0 THEN 3 "
+                          "WHEN CAST(COALESCE(json_extract(payload,'$.num_of_starts'),0) AS INTEGER)>0 THEN 2 "
+                          "WHEN CAST(COALESCE(json_extract(payload,'$.num_of_ends'),0) AS INTEGER)>0 THEN 1 ELSE 0 END")
+            }[sort]
             rows = db.execute("SELECT id,received,payload FROM events" + where + cursor +
-                              " ORDER BY id DESC LIMIT ?",
-                              args + ([before] if before else []) + [limit+1]).fetchall()
-        more = len(rows)>limit
-        page = rows[:limit]
-        return {"flows":[{"id":r["id"],"received":r["received"],**json.loads(r["payload"])} for r in page],
-                "next_cursor":page[-1]["id"] if more and page else None,
-                "has_more":more,"total":total}
+                              " ORDER BY " + order_expression + (" ASC" if order=="asc" else " DESC") +
+                              ", id DESC LIMIT ? OFFSET ?",
+                              args + ([before] if before else []) + [limit,page*limit]).fetchall()
+        more = (page+1)*limit < total
+        events = rows
+
+        return {"flows":[{"id":r["id"],"received":r["received"],**json.loads(r["payload"])} for r in events],
+                "next_cursor":events[-1]["id"] if more and events else None,
+                "page":page,"has_more":more,"total":total}
 
     def status(self):
         with closing(self.connect()) as db:
@@ -332,7 +354,11 @@ def make_http_server(store, token, address=("127.0.0.1", 0)):
                         protocol=number_param("protocol"),
                         state=params.get("state",[""])[0],
                         reporters=tuple(x for x in params.get("reporters",[""])[0].split(",") if x),
-                        ips=tuple(x for x in params.get("ips",[""])[0].split(",") if x))
+                        ips=tuple(x for x in params.get("ips",[""])[0].split(",") if x),
+                        search_ips=tuple(x for x in params.get("search_ips",[""])[0].split(",") if x),
+                        page=number_param("page"),
+                        sort=params.get("sort",["time"])[0],
+                        order=params.get("order",["desc"])[0])
                     payload,code=result,200
                 except (ValueError, OverflowError):
                     payload,code={"error":"invalid traffic filters"},400
