@@ -22,6 +22,10 @@ services:
       - "127.0.0.1:8085:8085"
     volumes: [native_flow_data:/data]
     read_only: true
+    # SQLite GROUP BY/ORDER BY needs temporary space even with a read-only
+    # container root. Keep scratch data ephemeral and memory-bounded.
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     mem_limit: 256m
