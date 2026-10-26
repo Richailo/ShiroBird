@@ -182,6 +182,28 @@ class ReceiverTests(unittest.TestCase):
             self.store.search_events(limit=25,sort="id desc;drop table events")
         self.assertEqual(self.store.status()["total"],4)
 
+    def test_paging_entire_collection_and_sorting(self):
+        for i in range(37):
+            e=sample()
+            e.event_id=bytes([40+i])*16
+            e.flow_fields.flow_id=bytes([50+i])*16
+            e.flow_fields.dest_ip=ipaddress.ip_address("192.168.2."+str(i+1)).packed
+            self.store.save(r.event_record(e,"peer-A"))
+        first=self.store.search_events(page=0,limit=25)
+        second=self.store.search_events(page=1,limit=25)
+        self.assertEqual(first["total"],37)
+        self.assertEqual(len(first["flows"]),25)
+        self.assertEqual(len(second["flows"]),12)
+        self.assertTrue(first["has_more"])
+        self.assertFalse(second["has_more"])
+        self.assertFalse({x["id"] for x in first["flows"]} &
+                         {x["id"] for x in second["flows"]})
+        ascending=self.store.search_events(page=0,limit=25,sort="dst",order="asc")
+        descending=self.store.search_events(page=0,limit=25,sort="dst",order="desc")
+        self.assertNotEqual(ascending["flows"][0]["dst"],descending["flows"][0]["dst"])
+        self.assertEqual(self.store.search_events(page=0,limit=25,
+                         query="100%")["total"],0)
+
     def test_http_full_history_query_and_user_filter(self):
         event=sample()
         self.store.save(r.event_record(event,"peer-A"))
