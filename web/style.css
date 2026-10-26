@@ -407,36 +407,6 @@ body.embedded .siem-grid .panel, body.embedded .flow-analytics-grid .panel {
   width:16px;height:16px;margin-left:5px;font-size:inherit}
 .native-sort-arrow svg{height:16px;width:16px;stroke-width:2px}
 
-/* Native Traffic Events: accessible per-event policy and route drill-down. */
-.native-event-expand {
-  display:inline-flex;align-items:center;justify-content:center;
-  min-height:26px;padding:4px 9px;margin-top:7px;
-  border:1px solid var(--stroke);border-radius:5px;
-  background:var(--soft);color:var(--muted);font:500 11px inherit;
-  cursor:pointer;
-}
-.native-event-expand:hover {background:var(--hover);color:var(--text)}
-.native-event-expand[aria-expanded="true"]{color:var(--text);border-color:var(--input-border)}
-.native-expanded-row td{background:var(--page);padding:14px 20px!important}
-.native-expanded-row:hover td{background:var(--page)!important}
-.native-details{border:1px solid var(--stroke);background:var(--surface);
-  padding:17px 20px;border-radius:7px;min-width:0;}
-.native-details>strong{font-size:14px;color:var(--text);font-weight:600}
-.native-details-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));
-  gap:16px 22px;margin:16px 0 10px}
-.native-details-grid>div{min-width:0;display:grid;gap:6px}
-.native-details-grid dt{font-size:11px;color:var(--muted);font-weight:500}
-.native-details-grid dd{font-size:12px;color:var(--text);margin:0;overflow-wrap:anywhere}
-.native-details-caveat{font-size:11px;color:var(--muted);line-height:1.55;margin:16px 0 0}
-.native-router-config{opacity:.9}
-.native-router-id{font-size:12px;overflow-wrap:anywhere}
-
-.native-event-expand svg{display:block;width:14px;height:14px;flex:0 0 14px;
-  transition:transform .15s ease}
-.native-event-expand[aria-expanded="false"] svg{transform:rotate(-90deg)}
-.native-event-expand[aria-expanded="true"] svg{transform:rotate(0)}
-.native-event-expand span{margin-left:5px}
-
 /* NetBird Traffic Events toolbar — matched to native dark/light dashboard. */
 .native-events-panel{overflow:visible}
 .native-events-heading{border-bottom:0;padding-bottom:8px}
@@ -558,4 +528,56 @@ body.embedded .native-overview,body.embedded .local-sensor-stats{max-width:100%;
 }
 @media(max-width:395px){
  .native-overview,.local-sensor-stats{grid-template-columns:minmax(0,1fr)}
+}
+
+/* Inline Traffic Events timeline — same hierarchy as NetBird's EVENT column,
+   no extra full-width details row or bordered card. */
+.native-events-table .native-row-expanded td{vertical-align:top;padding-top:21px;padding-bottom:23px}
+.native-events-table .native-event-cell{min-width:260px;max-width:380px}
+.native-events-table .native-event{display:block;min-width:0;max-width:360px}
+.native-inline-timeline{position:relative;display:flex;flex-direction:column;gap:14px}
+.native-inline-timeline.native-timeline-open{padding-bottom:2px}
+.native-inline-timeline.native-timeline-open:before{
+  content:"";position:absolute;left:4px;top:9px;bottom:9px;width:2px;
+  background:var(--success);opacity:.8;border-radius:2px
+}
+.native-timeline-item{position:relative;display:grid;grid-template-columns:10px minmax(0,1fr);
+  column-gap:12px;align-items:start;min-width:0}
+.native-timeline-item>.native-event-dot{position:relative;z-index:1;display:block;
+  width:9px;height:9px;min-width:9px;margin-top:5px}
+.native-timeline-body{min-width:0;display:flex;flex-direction:column;gap:5px}
+.native-timeline-date{font-size:11px;font-weight:500;line-height:1.4;color:var(--muted);
+  font-variant-numeric:tabular-nums}
+.native-event-heading{display:flex;align-items:flex-start;gap:7px;min-width:0}
+.native-event-title{font-size:12px;line-height:1.5;color:var(--text);font-weight:500;
+  overflow-wrap:anywhere;min-width:0}
+.native-timeline-item:not(.native-current-item) .native-event-title{color:var(--muted)}
+.native-inline-chevron{flex:0 0 23px;display:inline-flex;align-items:center;
+  justify-content:center;width:23px;height:23px;min-height:23px;
+  padding:0;margin:-3px 0 0 1px;border:0;background:transparent;
+  border-radius:5px;color:var(--muted);cursor:pointer}
+.native-inline-chevron:hover{background:var(--hover);color:var(--text)}
+.native-inline-chevron svg{width:16px;height:16px;transform:rotate(-90deg);
+  transition:transform .16s ease}
+.native-inline-chevron[aria-expanded="true"] svg{transform:rotate(180deg)}
+.native-inline-chevron:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.native-timeline-counts,.native-timeline-hint{font-size:11px;line-height:1.45;
+  color:var(--muted);overflow-wrap:anywhere}
+.native-timeline-hint{margin:9px 0 0 22px}
+.native-inline-evidence{margin:12px 0 0 22px;padding-top:10px;
+  border-top:1px solid var(--stroke);display:flex;flex-wrap:wrap;gap:7px 13px;
+  font-size:11px;line-height:1.5;color:var(--muted)}
+.native-inline-fact{min-width:0;overflow-wrap:anywhere}
+.native-inline-fact strong{font-size:11px;font-weight:550;color:var(--text)}
+.native-technical-details{flex-basis:100%;min-width:0;padding-top:5px}
+.native-technical-details summary{cursor:pointer;display:list-item;
+  list-style:disclosure-closed inside;color:var(--muted)}
+.native-technical-details[open] summary{list-style:disclosure-open inside}
+.native-technical-details>div{padding:7px 0 0 13px;display:grid;gap:5px;
+  overflow-wrap:anywhere;color:var(--muted)}
+.native-router-config{opacity:.9}
+.native-router-id{font-size:12px;overflow-wrap:anywhere}
+@media(max-width:800px){
+  .native-events-table .native-event-cell{min-width:220px;max-width:310px}
+  .native-events-table .native-event{max-width:290px}
 }
