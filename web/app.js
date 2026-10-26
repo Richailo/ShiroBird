@@ -755,6 +755,231 @@ function nativeNameIPs(search) {
     .filter(([,p])=>String(p.name||"").toLowerCase().includes(needle))
     .map(([ip])=>ip).slice(0,60);
 }
+// NetBird-like selects: the native select remains the single source of truth
+// for filters, but the visible listbox is rendered in a fixed body portal.
+// This prevents browser-native blue menus and OS icons bleeding through.
+const NATIVE_SELECT_IDS = [
+  "native-range","native-user","native-protocol","native-event-type",
+  "native-view","native-page-size"
+];
+const netbirdDropdowns = new Map();
+let netbirdOpenDropdown = null;
+const overlayMargin = 10;
+function syncNetbirdSelect(id) {
+  const item=netbirdDropdowns.get(id);
+  if(!item)return;
+  const selected=item.select.selectedOptions[0];
+  item.text.textContent=selected ? selected.textContent : "Select…";
+  item.trigger.setAttribute("aria-label",
+    (item.select.getAttribute("aria-label") || "Select option")+
+    ": "+item.text.textContent);
+}
+function closeNetbirdDropdown(restoreFocus=false) {
+  if(!netbirdOpenDropdown)return;
+  const item=netbirdOpenDropdown;
+  item.menu.hidden=true;
+  item.trigger.setAttribute("aria-expanded","false");
+  netbirdOpenDropdown=null;
+  if(restoreFocus)item.trigger.focus({preventScroll:true});
+}
+function placeNetbirdOverlay(element,anchor,width=0) {
+  const rect=anchor.getBoundingClientRect();
+  const winWidth=document.documentElement.clientWidth;
+  const winHeight=document.documentElement.clientHeight;
+  const idealWidth=width||Math.max(190,rect.width);
+  const menuWidth=Math.min(idealWidth,Math.max(160,winWidth-overlayMargin*2));
+  element.style.width=menuWidth+"px";
+  const availableBelow=winHeight-rect.bottom-overlayMargin;
+  const availableAbove=rect.top-overlayMargin;
+  const useAbove=availableBelow<180 && availableAbove>availableBelow;
+  const maxHeight=Math.max(88,Math.min(310,
+    useAbove ? availableAbove-7 : availableBelow-7));
+  element.style.maxHeight=maxHeight+"px";
+  const height=Math.min(element.scrollHeight,maxHeight);
+  element.style.left=Math.max(overlayMargin,Math.min(
+    rect.left,winWidth-menuWidth-overlayMargin))+"px";
+  element.style.top=Math.max(overlayMargin,
+    useAbove ? rect.top-height-7 : rect.bottom+7)+"px";
+}
+function buildNetbirdDropdownOptions(item) {
+  const fragment=document.createDocumentFragment();
+  const values=Array.from(item.select.options).filter(o=>!o.disabled);
+  item.choices=[];
+  for(const [index,option] of values.entries()) {
+    const row=document.createElement("div");
+    row.className="nb-select-option";
+    row.id=item.listId+"-opt-"+index;
+    row.setAttribute("role","option");
+    row.setAttribute("aria-selected",String(option.value===item.select.value));
+    row.dataset.value=option.value;
+    const text=document.createElement("span");
+    text.textContent=option.textContent;
+    const check=document.createElementNS("http://www.w3.org/2000/svg","svg");
+    check.setAttribute("viewBox","0 0 24 24");
+    check.setAttribute("aria-hidden","true");
+    const path=document.createElementNS("http://www.w3.org/2000/svg","path");
+    path.setAttribute("d","M5 12l5 5L19 7");
+    path.setAttribute("fill","none");
+    path.setAttribute("stroke","currentColor");
+    path.setAttribute("stroke-width","2.3");
+    path.setAttribute("stroke-linecap","round");
+    check.append(path);
+    row.append(text,check);
+    row.addEventListener("pointermove",()=>{
+      if(netbirdOpenDropdown===item)setNetbirdActiveOption(item,index,false);
+    });
+    row.addEventListener("click",()=>{
+      item.select.value=option.value;
+      syncNetbirdSelect(item.id);
+      closeNetbirdDropdown();
+      item.select.dispatchEvent(new Event("change",{bubbles:true}));
+      item.trigger.focus({preventScroll:true});
+    });
+    item.choices.push(row);
+    fragment.append(row);
+  }
+  item.menu.replaceChildren(fragment);
+  const idx=values.findIndex(option=>option.value===item.select.value);
+  setNetbirdActiveOption(item,Math.max(0,idx),false);
+}
+function setNetbirdActiveOption(item,index,scroll=true) {
+  if(!item.choices.length)return;
+  item.activeIndex=Math.max(0,Math.min(index,item.choices.length-1));
+  for(const [i,row] of item.choices.entries()) {
+    row.classList.toggle("nb-option-active",i===item.activeIndex);
+    if(i===item.activeIndex)item.menu.setAttribute("aria-activedescendant",row.id);
+  }
+  if(scroll)item.choices[item.activeIndex].scrollIntoView({block:"nearest"});
+}
+function openNetbirdDropdown(item,startingKey=null) {
+  if(netbirdOpenDropdown===item){closeNetbirdDropdown();return;}
+  closeNetbirdDropdown();
+  closeNativeFilter(false);
+  buildNetbirdDropdownOptions(item);
+  item.menu.hidden=false;
+  item.trigger.setAttribute("aria-expanded","true");
+  netbirdOpenDropdown=item;
+  if(startingKey==="ArrowDown")setNetbirdActiveOption(item,Math.min(
+    item.activeIndex+1,item.choices.length-1),false);
+  if(startingKey==="ArrowUp")setNetbirdActiveOption(item,Math.max(
+    item.activeIndex-1,0),false);
+  placeNetbirdOverlay(item.menu,item.trigger);
+  item.menu.focus({preventScroll:true});
+  item.choices[item.activeIndex]?.scrollIntoView({block:"nearest"});
+}
+function initializeNetbirdDropdowns() {
+  for(const id of NATIVE_SELECT_IDS) {
+    const select=$(id);
+    if(!select || netbirdDropdowns.has(id))continue;
+    const host=document.createElement("span");
+    host.className="nb-select-host";
+    const trigger=document.createElement("button");
+    trigger.type="button";
+    trigger.className="nb-select-trigger";
+    trigger.setAttribute("aria-haspopup","listbox");
+    trigger.setAttribute("aria-expanded","false");
+    const listId="nb-list-"+id;
+    trigger.setAttribute("aria-controls",listId);
+    const text=document.createElement("span");
+    text.className="nb-select-label";
+    const arrow=document.createElementNS("http://www.w3.org/2000/svg","svg");
+    arrow.setAttribute("viewBox","0 0 24 24");
+    arrow.setAttribute("aria-hidden","true");
+    const arrowPath=document.createElementNS("http://www.w3.org/2000/svg","path");
+    arrowPath.setAttribute("d","m6 9 6 6 6-6");
+    arrowPath.setAttribute("fill","none");
+    arrowPath.setAttribute("stroke","currentColor");
+    arrowPath.setAttribute("stroke-width","2");
+    arrowPath.setAttribute("stroke-linecap","round");
+    arrowPath.setAttribute("stroke-linejoin","round");
+    arrow.append(arrowPath);
+    trigger.append(text,arrow);
+    const menu=document.createElement("div");
+    menu.className="nb-select-menu";
+    menu.id=listId;
+    menu.hidden=true;
+    menu.tabIndex=-1;
+    menu.setAttribute("role","listbox");
+    menu.setAttribute("aria-label",select.getAttribute("aria-label")||"Options");
+    document.body.append(menu);
+    select.parentNode.insertBefore(host,select);
+    host.append(select,trigger);
+    select.classList.add("nb-select-native");
+    select.tabIndex=-1;
+    select.setAttribute("aria-hidden","true");
+    const item={id,select,host,trigger,text,menu,listId,choices:[],activeIndex:0};
+    netbirdDropdowns.set(id,item);
+    syncNetbirdSelect(id);
+    trigger.addEventListener("click",()=>openNetbirdDropdown(item));
+    trigger.addEventListener("keydown",event=>{
+      if(["Enter"," ","ArrowDown","ArrowUp"].includes(event.key)){
+        event.preventDefault();
+        openNetbirdDropdown(item,event.key);
+      }
+    });
+    menu.addEventListener("keydown",event=>{
+      if(event.key==="Escape"){event.preventDefault();closeNetbirdDropdown(true);}
+      else if(event.key==="Tab"){closeNetbirdDropdown();}
+      else if(["ArrowDown","ArrowUp","Home","End"].includes(event.key)){
+        event.preventDefault();
+        const idx=event.key==="Home"?0:
+          event.key==="End"?item.choices.length-1:
+          item.activeIndex+(event.key==="ArrowDown"?1:-1);
+        setNetbirdActiveOption(item,idx);
+      }else if(event.key==="Enter"||event.key===" "){
+        event.preventDefault();item.choices[item.activeIndex]?.click();
+      }
+    });
+    select.addEventListener("change",()=>syncNetbirdSelect(id));
+  }
+}
+function placeNativeFilter() {
+  if($("native-advanced").hidden)return;
+  placeNetbirdOverlay($("native-advanced"),$("native-filter-toggle"),320);
+}
+function closeNativeFilter(restoreFocus=false) {
+  const panel=$("native-advanced");
+  if(panel.hidden)return;
+  panel.hidden=true;
+  $("native-filter-toggle").setAttribute("aria-expanded","false");
+  if(restoreFocus)$("native-filter-toggle").focus({preventScroll:true});
+}
+function showNativeFilter() {
+  closeNetbirdDropdown();
+  $("native-advanced").hidden=false;
+  $("native-filter-toggle").setAttribute("aria-expanded","true");
+  placeNativeFilter();
+}
+function setupNativeFilterPortal() {
+  const panel=$("native-advanced");
+  document.body.append(panel);
+  panel.classList.add("nb-filter-portal");
+  panel.hidden=true;
+  // Clicking outside always dismisses overlays; nested popup selections
+  // never pass pointer clicks through to the underlying table icons.
+  document.addEventListener("pointerdown",event=>{
+    if(netbirdOpenDropdown &&
+       !netbirdOpenDropdown.menu.contains(event.target) &&
+       !netbirdOpenDropdown.trigger.contains(event.target))
+      closeNetbirdDropdown();
+    if(!panel.hidden &&
+       !panel.contains(event.target) &&
+       !$("native-filter-toggle").contains(event.target) &&
+       !event.target.closest?.(".nb-select-menu"))closeNativeFilter();
+  });
+  window.addEventListener("resize",()=>{
+    if(netbirdOpenDropdown)placeNetbirdOverlay(
+      netbirdOpenDropdown.menu,netbirdOpenDropdown.trigger);
+    placeNativeFilter();
+  });
+  // The iframe can scroll independently from the parent NetBird panel.
+  window.addEventListener("scroll",()=>{
+    if(netbirdOpenDropdown)placeNetbirdOverlay(
+      netbirdOpenDropdown.menu,netbirdOpenDropdown.trigger);
+    placeNativeFilter();
+  },true);
+}
+
 function renderNativeFilterChips() {
   const target=$("native-active-filters");
   const chips=[];
@@ -827,6 +1052,7 @@ function populateNativeUsers() {
   }
   dropdown.value=selected && Array.from(dropdown.options)
     .some(option=>option.value===selected) ? selected : "";
+  syncNetbirdSelect("native-user");
 }
 async function refreshNative(resetPage=false) {
   if (resetPage) nativePage=0;
@@ -893,6 +1119,7 @@ $("native-search").addEventListener("input",()=>{
 });
 $("native-range").addEventListener("change",()=>{
   $("native-custom-dates").hidden=$("native-range").value!=="custom";
+  if($("native-range").value==="custom")showNativeFilter();
   void nativeRefilter();
 });
 for(const id of ["native-user","native-protocol","native-event-type","native-page-size",
@@ -918,14 +1145,14 @@ $("native-clear").addEventListener("click",()=>{
   $("native-view").value="compact";
   $("native-from").value="";$("native-to").value="";
   $("native-custom-dates").hidden=true;
-  $("native-advanced").hidden=true;
-  $("native-filter-toggle").setAttribute("aria-expanded","false");
+  closeNetbirdDropdown();
+  closeNativeFilter();
+  for(const id of NATIVE_SELECT_IDS)syncNetbirdSelect(id);
   void nativeRefilter();
 });
 $("native-filter-toggle").addEventListener("click",()=>{
-  const hidden=!$("native-advanced").hidden;
-  $("native-advanced").hidden=hidden;
-  $("native-filter-toggle").setAttribute("aria-expanded",String(!hidden));
+  if($("native-advanced").hidden)showNativeFilter();
+  else closeNativeFilter();
 });
 document.addEventListener("keydown",event=>{
   if ((event.ctrlKey||event.metaKey) && event.key.toLowerCase()==="k" &&
@@ -933,9 +1160,9 @@ document.addEventListener("keydown",event=>{
     event.preventDefault();
     $("native-search").focus();
   }
-  if(event.key==="Escape" && !$("native-advanced").hidden) {
-    $("native-advanced").hidden=true;
-    $("native-filter-toggle").setAttribute("aria-expanded","false");
+  if(event.key==="Escape"){
+    if(netbirdOpenDropdown)closeNetbirdDropdown(true);
+    else closeNativeFilter(true);
   }
 });
 $("native-stream-card").addEventListener("click",()=>{
@@ -1139,8 +1366,9 @@ async function start() {
   try {
     if (loadingPage === "siem-integration") await refreshSiem();
     else {
-      await Promise.all([refreshFlows(), refreshAnalytics(), refreshNative()]);
-      if (page === loadingPage) connectFlows();
+      // Native NetBird reports are the Traffic Flow source. Legacy local
+      // collector widgets are hidden and no longer polled from this view.
+      await refreshNative();
     }
     if (generation === currentLoad) {
       $("auth").hidden = true;
@@ -1168,7 +1396,9 @@ function switchEmbeddedView(nextPage) {
   if (stream) stream.close();
   stream = null;
   // Reuse the existing document, styles and SSO cookie, without any navigation.
-  void start();
+  initializeNetbirdDropdowns();
+setupNativeFilterPortal();
+void start();
 }
 window.addEventListener("message", event => {
   if (!embedded || event.origin !== location.origin ||
