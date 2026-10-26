@@ -394,6 +394,13 @@
     const page = selectedPage();
     if (!panel || !page) return;
     const frame = panel.querySelector("iframe");
+    // If users open SIEM first, then Traffic Flow in the same SSO session,
+    // load routing/policy metadata immediately rather than after token refresh.
+    if (page.slug === "traffic-flow" && lastAuth > 0 &&
+        Date.now() - directoryFetchedAt > 180000) {
+      const token = netbirdToken();
+      if (token) void updatePeerDirectory(token);
+    }
     // Never navigate an already loaded iframe just to switch tabs or themes:
     // navigation used to expose the browser's temporary white about:blank.
     if (!frame.getAttribute("src")) {
