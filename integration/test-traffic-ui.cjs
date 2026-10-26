@@ -9,7 +9,7 @@ const start=source.indexOf('const trafficNS = "http://www.w3.org/2000/svg"');
 const stop=source.indexOf('let nativeRowsLoaded = [];',start);
 assert.ok(start > 0 && stop > start,"native DOM helpers found");
 class Node {
-  constructor(tag){this.tagName=tag;this.children=[];this.attributes={};
+  constructor(tag){this.tagName=tag;this.children=[];this.attributes={};this.dataset={};
     this.textContent="";this.className="";this.title="";}
   append(...nodes){this.children.push(...nodes);}
   setAttribute(key,val){this.attributes[key]=String(val);}
