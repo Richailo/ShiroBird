@@ -599,9 +599,10 @@ class Handler(BaseHTTPRequestHandler):
             # Use native receiver's full-database filtered query, never only
             # filter a previously fetched browser page.
             if qs.get("filtered", ["0"])[0] == "1":
-                filters = {k: qs.get(k, [""])[0] for k in
+                filters = {k: value for k in
                            ("before","limit","start","end","q","protocol",
-                            "state","reporters","ips","search_ips","page","sort","order")}
+                            "state","reporters","ips","search_ips","page","sort","order")
+                           if (value := qs.get(k, [""])[0]) != ""}
                 if any(len(v) > (1024 if k in ("reporters","ips","search_ips") else 125)
                        for k,v in filters.items()):
                     return self.reply(400, {"error":"traffic filters too long"})
