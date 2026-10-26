@@ -272,6 +272,8 @@ function lucideIcon(name, size=15) {
     [["path","M12 5v14"],["path","m19 12-7 7-7-7"]] :
     name === "arrow-up" ?
     [["path","M12 19V5"],["path","m5 12 7-7 7 7"]] :
+    name === "chevron-down" ?
+    [["path","m6 9 6 6 6-6"]] :
     name === "share-2" ?
     [["circle",{cx:18,cy:5,r:3}],["circle",{cx:6,cy:12,r:3}],
      ["circle",{cx:18,cy:19,r:3}],
@@ -607,7 +609,10 @@ function renderNativeRows() {
         toggle.dataset.eventKey=eventKey;
         toggle.setAttribute("aria-label","Show event details and NetBird Policy");
         toggle.setAttribute("aria-expanded",String(nativeExpanded.has(eventKey)));
-        toggle.textContent=nativeExpanded.has(eventKey) ? "▾ Details" : "▸ Details";
+        toggle.append(lucideIcon("chevron-down",14));
+        const title=document.createElement("span");
+        title.textContent="Details";
+        toggle.append(title);
         td.append(toggle);
       }
       tr.append(td);
