@@ -18,6 +18,7 @@ jobs:
       - run: bash -n scripts/install.sh scripts/install-collector.sh scripts/install-integrated.sh
       - run: node --check integration/bridge.js && node --check web/app.js
       - run: node integration/test-sidebar.cjs
+      - run: node integration/test-layout.cjs
       - run: docker build -t shirobird:test .
       - name: Dashboard bridge integration smoke test
         run: |
