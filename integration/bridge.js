@@ -32,15 +32,33 @@
       buttons.find(b => /^activity$/i.test((b.textContent || "").trim())) ||
       buttons[buttons.length - 1] || null;
   }
-  function sidebarFrom(button) {
-    let node = button && button.parentElement;
-    while (node && node !== document.body) {
-      const r = node.getBoundingClientRect();
-      if (r.left < 40 && r.width >= 54 && r.width < 420 && r.height > innerHeight * .4)
-        return node;
-      node = node.parentElement;
+  // Layout must follow NetBird's actual navigation box, NOT an ancestor
+  // of an injected menu item (which may have 240px intrinsic width).
+  function panelGeometry(bounds, viewportWidth, viewportHeight) {
+    if (!bounds || !Number.isFinite(bounds.right) || !Number.isFinite(bounds.top))
+      return {left: 0, top: 0};
+    const left = Math.max(0, Math.min(Math.round(bounds.right), viewportWidth - 64));
+    const top = Math.max(0, Math.min(Math.round(bounds.top), viewportHeight - 80));
+    return {left, top};
+  }
+  let activePanelNavigation = null;
+  const panelResizeObserver = typeof ResizeObserver === "function"
+    ? new ResizeObserver(() => positionPanel()) : null;
+  function positionPanel() {
+    const panel = document.getElementById(VIEW_ID);
+    if (!panel || panel.hidden) return;
+    const navigation = document.querySelector("[data-navigation]");
+    if (navigation !== activePanelNavigation) {
+      if (panelResizeObserver) panelResizeObserver.disconnect();
+      activePanelNavigation = navigation;
+      if (panelResizeObserver && navigation) panelResizeObserver.observe(navigation);
     }
-    return button && button.closest("aside,nav");
+    const geometry = panelGeometry(
+      navigation && navigation.getBoundingClientRect(),
+      window.innerWidth, window.innerHeight
+    );
+    panel.style.left = geometry.left + "px";
+    panel.style.top = geometry.top + "px";
   }
   // Matches NetBird SidebarItem's Lucide ChevronDownIcon (18px). A 180°
   // rotation gives the same geometry as its ChevronUpIcon when expanded.
@@ -292,13 +310,7 @@
     if (!panel) panel = createPanel();
     panel.hidden = !page;
     if (!page) return;
-    const parent = document.getElementById("shirobird-menu-toggle") || navCandidate();
-    const sidebar = sidebarFrom(parent);
-    const bounds = sidebar && sidebar.getBoundingClientRect();
-    panel.style.left = Math.round(bounds && bounds.right > 48 && bounds.right < innerWidth * .55
-      ? bounds.right : 0) + "px";
-    panel.style.top = Math.round(bounds && bounds.top >= 40 && bounds.top < 180
-      ? bounds.top : 0) + "px";
+    positionPanel();
     if (Date.now() - lastAuth > 90000) void netbirdLogin();
     else showPage();
   }
@@ -322,7 +334,14 @@
   });
   window.addEventListener("hashchange", refresh);
   window.addEventListener("popstate", refresh);
-  window.addEventListener("resize", refresh);
+  window.addEventListener("resize", () => { refresh(); positionPanel(); });
+  window.addEventListener("pageshow", () => { refresh(); positionPanel(); });
+  // Native navigation expands on hover through a CSS width transition.
+  // Pointer entry/exit re-check layout; ResizeObserver follows each frame.
+  document.addEventListener("pointerover", event => {
+    if (event.target instanceof Element && event.target.closest("[data-navigation]"))
+      requestAnimationFrame(positionPanel);
+  }, {passive: true});
   window.setInterval(() => {
     if (selectedPage()) void netbirdLogin();
   }, 90000);
