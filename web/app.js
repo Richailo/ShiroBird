@@ -919,7 +919,9 @@ function initializeNetbirdDropdowns() {
       }
     });
     menu.addEventListener("keydown",event=>{
-      if(event.key==="Escape"){event.preventDefault();closeNetbirdDropdown(true);}
+      if(event.key==="Escape"){
+        event.preventDefault();event.stopPropagation();closeNetbirdDropdown(true);
+      }
       else if(event.key==="Tab"){closeNetbirdDropdown();}
       else if(["ArrowDown","ArrowUp","Home","End"].includes(event.key)){
         event.preventDefault();
@@ -955,7 +957,18 @@ function setupNativeFilterPortal() {
   const panel=$("native-advanced");
   document.body.append(panel);
   panel.classList.add("nb-filter-portal");
+  panel.setAttribute("role","dialog");
+  panel.setAttribute("aria-label","Traffic filters");
+  panel.setAttribute("aria-modal","false");
   panel.hidden=true;
+  $("native-filter-close").addEventListener("click",()=>{
+    closeNetbirdDropdown();closeNativeFilter(true);
+  });
+  document.addEventListener("keydown",event=>{
+    if(event.key==="Escape" && !panel.hidden && !netbirdOpenDropdown){
+      event.preventDefault();closeNativeFilter(true);
+    }
+  });
   // Clicking outside always dismisses overlays; nested popup selections
   // never pass pointer clicks through to the underlying table icons.
   document.addEventListener("pointerdown",event=>{
@@ -981,20 +994,53 @@ function setupNativeFilterPortal() {
   },true);
 }
 
+const NATIVE_CHIP_DEFAULTS={
+  "native-view":"compact",
+  "native-search":"",
+  "native-range":"172800",
+  "native-user":"",
+  "native-protocol":"0",
+  "native-event-type":""
+};
+function removeNativeFilterChip(id) {
+  if(!Object.hasOwn(NATIVE_CHIP_DEFAULTS,id))return;
+  $(id).value=NATIVE_CHIP_DEFAULTS[id];
+  if(id==="native-search")clearTimeout(nativeSearchDelay);
+  if(id==="native-range"){
+    $("native-from").value="";
+    $("native-to").value="";
+    $("native-custom-dates").hidden=true;
+  }
+  // Preserve every other filter; refresh the NetBird-style select label.
+  closeNetbirdDropdown();
+  syncNetbirdSelect(id);
+  renderNativeFilterChips();
+  void nativeRefilter();
+}
 function renderNativeFilterChips() {
   const target=$("native-active-filters");
   const chips=[];
-  if($("native-view").value==="raw")chips.push(["View","All native reports"]);
-  if ($("native-search").value.trim()) chips.push(["Search", $("native-search").value.trim()]);
-  if ($("native-range").value!=="172800") chips.push(["Time", $("native-range").selectedOptions[0].text]);
-  if ($("native-user").value) chips.push(["User", $("native-user").selectedOptions[0].text]);
-  if ($("native-protocol").value!=="0") chips.push(["Protocol", $("native-protocol").selectedOptions[0].text]);
-  if ($("native-event-type").value) chips.push(["Event", $("native-event-type").selectedOptions[0].text]);
+  if($("native-view").value==="raw")chips.push(["native-view","View","All native reports"]);
+  if($("native-search").value.trim()) chips.push(["native-search","Search",$("native-search").value.trim()]);
+  if($("native-range").value!=="172800") chips.push(["native-range","Time",$("native-range").selectedOptions[0].text]);
+  if($("native-user").value) chips.push(["native-user","User",$("native-user").selectedOptions[0].text]);
+  if($("native-protocol").value!=="0") chips.push(["native-protocol","Protocol",$("native-protocol").selectedOptions[0].text]);
+  if($("native-event-type").value) chips.push(["native-event-type","Event",$("native-event-type").selectedOptions[0].text]);
   target.replaceChildren();
-  for (const [label,content] of chips) {
+  for(const [id,label,content] of chips){
     const chip=document.createElement("span");
     chip.className="native-filter-chip";
-    chip.textContent=label+": "+content;
+    const text=document.createElement("span");
+    text.className="native-filter-chip-label";
+    text.textContent=label+": "+content;
+    const remove=document.createElement("button");
+    remove.type="button";
+    remove.className="native-filter-chip-remove";
+    remove.setAttribute("aria-label","Remove "+label.toLowerCase()+" filter: "+content);
+    remove.setAttribute("title","Remove "+label.toLowerCase()+" filter");
+    remove.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+    remove.addEventListener("click",()=>removeNativeFilterChip(id));
+    chip.append(text,remove);
     target.append(chip);
   }
   target.hidden=!chips.length;
@@ -1012,30 +1058,6 @@ function renderNativeSummary(data) {
     "Receiver online · native reports, not conntrack sessions" :
     data.receiver_online ? "Receiver online · traffic query failed" :
     "Native receiver unavailable — counts not confirmed";
-}
-function renderNativeStreamState(data) {
-  const label=$("native-stream-status");
-  const description=$("native-stream-description");
-  label.classList.remove("receiving","offline");
-  if (!data.available) {
-    if (data.receiver_online) {
-      label.textContent="Query error";
-      description.textContent=data.note || "Native event filter request failed";
-    } else {
-      label.textContent="Offline";
-      label.classList.add("offline");
-      description.textContent=data.note || "Native event receiver is unavailable";
-    }
-    return;
-  }
-  const last=Number(data.status?.last_received||0);
-  const recent=last>0 && (Date.now()/1000-last)<300;
-  label.textContent=recent?"Receiving":"Online";
-  if(recent) label.classList.add("receiving");
-  description.textContent=last ?
-    "Last event: "+new Date(last*1000).toLocaleString()+
-    " · "+Number(data.status?.total||0).toLocaleString()+" stored" :
-    "Receiver online · no native peer events recorded";
 }
 function populateNativeUsers() {
   const dropdown=$("native-user");
@@ -1093,7 +1115,6 @@ async function refreshNative(resetPage=false) {
     $("native-table").hidden=!data.available;
     nativeRowsLoaded=Array.isArray(data.flows)?data.flows:[];
     nativeTotal=Number(data.total||0);
-    renderNativeStreamState(data);
     renderNativeSummary(data);
     renderNativeRows();
     renderNativePagination();
@@ -1102,7 +1123,6 @@ async function refreshNative(resetPage=false) {
     $("native-note").textContent="Unable to load traffic events: "+error.message;
     nativeRowsLoaded=[];nativeTotal=0;
     renderNativeRows();renderNativePagination();
-    renderNativeStreamState({available:false});
     renderNativeSummary({available:false});
   } finally {
     if(version===nativeRequestVersion)$("native-refresh").disabled=false;
@@ -1165,11 +1185,6 @@ document.addEventListener("keydown",event=>{
     if(netbirdOpenDropdown)closeNetbirdDropdown(true);
     else closeNativeFilter(true);
   }
-});
-$("native-stream-card").addEventListener("click",()=>{
-  if(embedded)window.parent.postMessage(
-    {source:"shirobird-request-tab",view:"siem-integration"},location.origin);
-  else window.location.search="?view=siem-integration";
 });
 $("native-rows").addEventListener("click", event => {
   const toggle=event.target.closest?.("button[data-event-key]");

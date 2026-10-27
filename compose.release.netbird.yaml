@@ -1,0 +1,45 @@
+# Embedded sidecar for existing self-hosted NetBird.
+services:
+  shirobird:
+    environment:
+      SHIROBIRD_EMBEDDED: "true"
+      SHIROBIRD_AUTH_MODE: "netbird"
+      SHIROBIRD_NETBIRD_IDENTITY_URL: "http://netbird-server:80/api/users/current"
+    networks: [default, netbird-dashboard-network]
+  shirobird-customize:
+    image: ${SHIROBIRD_RELEASE_CUSTOMIZE_IMAGE:-ghcr.io/richailo/shirobird-customize:0.1.0-rc.1}
+    restart: unless-stopped
+    user: "65532:65532"
+    environment:
+      SHIROBIRD_ADMIN_TOKEN: ${SHIROBIRD_ADMIN_TOKEN:?Random signing secret required}
+      SHIROBIRD_DATA: "/data"
+    volumes: ["./data:/data"]
+    read_only: true
+    tmpfs: ["/tmp:rw,nosuid,nodev,noexec,size=8m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 48
+    mem_limit: 128m
+    init: true
+  shirobird-bridge:
+    image: ${SHIROBIRD_RELEASE_BRIDGE_IMAGE:-ghcr.io/richailo/shirobird-bridge:0.1.0-rc.1}
+    restart: unless-stopped
+    depends_on:
+      shirobird: {condition: service_healthy}
+      shirobird-customize: {condition: service_healthy}
+    networks: [default, netbird-dashboard-network]
+    ports: ["${SHIROBIRD_BRIDGE_BIND:-127.0.0.1}:${SHIROBIRD_BRIDGE_PORT:-8082}:8080"]
+    read_only: true
+    tmpfs:
+      - "/var/cache/nginx:rw,nosuid,nodev,noexec,size=16m"
+      - "/var/run:rw,nosuid,nodev,noexec,size=2m"
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETUID, SETGID]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    mem_limit: 128m
+    init: true
+networks:
+  netbird-dashboard-network:
+    external: true
+    name: ${SHIROBIRD_NETBIRD_NETWORK:-netbird_netbird}

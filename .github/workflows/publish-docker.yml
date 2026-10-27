@@ -1,0 +1,71 @@
+name: Publish ShiroBird container images
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: read
+  packages: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.13"}
+      - run: python -m unittest discover -s tests -q
+      - run: python -m compileall -q shirobird
+      - run: cp .env.example .env
+      - run: docker compose -f compose.release.yaml -f compose.release.netbird.yaml -f compose.release.build.yaml -f compose.release.build.netbird.yaml config -q
+        env:
+          SHIROBIRD_ADMIN_TOKEN: ci-only-test-token-do-not-use-in-production
+  publish:
+    needs: validate
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: shirobird
+            context: .
+            dockerfile: Dockerfile
+          - image: shirobird-customize
+            context: .
+            dockerfile: packaging/docker/customize.Dockerfile
+          - image: shirobird-bridge
+            context: .
+            dockerfile: packaging/docker/bridge.Dockerfile
+          - image: shirobird-native-flow
+            context: extensions/native-flow
+            dockerfile: extensions/native-flow/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+      - name: Normalize owner
+        id: owner
+        shell: bash
+        run: echo "name=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/${{ steps.owner.outputs.name }}/${{ matrix.image }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+          provenance: true
+          sbom: true

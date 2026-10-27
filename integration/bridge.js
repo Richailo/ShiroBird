@@ -9,8 +9,106 @@
   const ROOT = "#shirobird/";
   const ITEMS = [
     {name: "Traffic Flow", slug: "traffic-flow", glyph: "↗"},
-    {name: "SIEM Integration", slug: "siem-integration", glyph: "▤"}
+    {name: "SIEM Integration", slug: "siem-integration", glyph: "▤"},
+    {name: "Customize", slug: "customize", glyph: "⚙"}
   ];
+  // Native NetBird feature visibility: UI only, not security or licensing.
+  const FEATURE_LABELS = {
+    "control-center":["Control Center"],"peers":["Peers"],
+    "access-control":["Access Control"],"network-routing":["Network Routing"],
+    "reverse-proxy":["Reverse Proxy"],"dns":["DNS"],"team":["Team"],
+    "activity":["Activity"],"settings":["Settings"],
+    "integrations":["Integrations"],"documentation":["Documentation"],
+    "setup-keys":["Setup Keys"],"access-policies":["Access Policies","Policies"],
+    "posture-checks":["Posture Checks"],"networks":["Networks"],
+    "network-routes":["Network Routes","Routes"],"users":["Users"],
+    "groups":["Groups"],"audit-events":["Audit Events","Audit Logs"],
+    "traffic-events":["Traffic Events","Traffic Logging"],
+    "event-streaming":["Event Streaming","Events Streaming"],
+    "device-approvals":["Device Approvals","Device Approval"],
+    "scim":["SCIM","SCIM Provisioning"]
+  };
+  const visibility = Object.fromEntries(Object.keys(FEATURE_LABELS).map(key => [key,true]));
+  for (const key of ["traffic-events","event-streaming","device-approvals","scim"])
+    visibility[key] = false;
+  visibility["shirobird-traffic-flow"] = true;
+  visibility["shirobird-siem-integration"] = true;
+  let visibilityFetchTime = 0;
+  let prefetchPending = false;
+  let lastPrefetch = 0;
+
+  function featureForLabel(label) {
+    const normalized = String(label || "").toLowerCase()
+      .replace(/[^a-z0-9]+/g," ").trim();
+    for (const [key, aliases] of Object.entries(FEATURE_LABELS)) {
+      if (aliases.some(alias => normalized === alias.toLowerCase() ||
+          normalized.startsWith(alias.toLowerCase() + " beta") ||
+          normalized.startsWith(alias.toLowerCase() + " new")))
+        return key;
+    }
+    return null;
+  }
+  function applyVisibility() {
+    const nav = document.querySelector("[data-navigation]");
+    if (nav) for (const element of nav.querySelectorAll("button,a[href]")) {
+      if (element.closest("#" + NAV_ID)) continue;
+      const key = featureForLabel(element.getAttribute("aria-label") ||
+          element.innerText || element.textContent);
+      if (!key) continue;
+      const item = element.closest("[data-nav-item]") || element.closest("li") || element;
+      item.classList.toggle("shirobird-custom-hidden", visibility[key] === false);
+    }
+    for (const element of document.querySelectorAll('[role="tab"]')) {
+      const key = featureForLabel(element.getAttribute("aria-label") || element.textContent);
+      if (key) element.classList.toggle("shirobird-custom-hidden",visibility[key] === false);
+    }
+    const menu = document.getElementById(NAV_ID);
+    if (menu) for (const button of menu.querySelectorAll("button[data-shirobird-page]")) {
+      const key = "shirobird-" + button.dataset.shirobirdPage;
+      (button.closest("li") || button).classList.toggle("shirobird-custom-hidden",visibility[key] === false);
+    }
+  }
+  function receiveVisibility(settings) {
+    if (!settings || typeof settings !== "object" || Array.isArray(settings)) return;
+    for (const [key,value] of Object.entries(settings)) {
+      if (Object.prototype.hasOwnProperty.call(visibility,key) && typeof value === "boolean")
+        visibility[key] = value;
+    }
+    applyVisibility();
+  }
+  async function loadVisibility() {
+    if (Date.now() - visibilityFetchTime < 45000) return;
+    visibilityFetchTime = Date.now();
+    try {
+      const result = await fetch("/shirobird/api/customize",{
+        credentials:"same-origin",cache:"no-store",headers:{"Accept":"application/json"}
+      });
+      if (result.ok) receiveVisibility((await result.json()).visibility);
+    } catch (_) { /* Keep conservative paid defaults. */ }
+  }
+  async function preloadVisibility() {
+    const token = netbirdToken();
+    if (!token || prefetchPending || Date.now() - lastPrefetch < 45000) return;
+    prefetchPending = true;
+    lastPrefetch = Date.now();
+    try {
+      const result = await fetch("/shirobird/api/netbird-session", {
+        method:"POST",credentials:"same-origin",cache:"no-store",
+        headers:{"Authorization":"Bearer " + token}
+      });
+      if (result.ok) await loadVisibility();
+    } catch (_) { /* No credentials are sent to the ShiroBird iframe. */ }
+    finally { prefetchPending = false; }
+  }
+  window.addEventListener("message", event => {
+    const frame = document.querySelector("#" + VIEW_ID + " iframe");
+    if (!frame || event.origin !== location.origin ||
+        event.source !== frame.contentWindow ||
+        event.data?.source !== "shirobird-customize-updated") return;
+    receiveVisibility(event.data.visibility);
+    visibilityFetchTime = Date.now();
+  });
+
   let expanded = location.hash.startsWith(ROOT);
   let lastAuth = 0;
   let peerDirectory = [];
@@ -176,10 +274,15 @@
     updateNavigation();
   }
   function updateNavigation() {
+    const page = selectedPage();
+    // NetBird chooses its active item using pathname, whereas ShiroBird uses
+    // the hash. While a ShiroBird page is shown, temporarily neutralize only
+    // native selection visuals; do not change native React router state.
+    document.documentElement.classList.toggle("shirobird-route-active", Boolean(page));
     const nav = document.getElementById(NAV_ID);
     if (!nav) return;
     syncSidebarMode();
-    const page = selectedPage();
+    applyVisibility();
     nav.classList.toggle("shirobird-expanded", expanded);
     nav.classList.toggle("shirobird-active", Boolean(page));
     const parent = nav.querySelector("#shirobird-menu-toggle");
@@ -201,6 +304,173 @@
       return typeof token === "string" && token.length > 15 ? token : null;
     } catch (_) { return null; }
   }
+  // Customize is rendered by the NetBird bridge itself: never depend on the
+  // asynchronously upgraded Traffic Flow / SIEM iframe application.
+  let customizeState = null;
+  let customizeFetching = null;
+  let customizeFetchedAt = 0;
+  let customizeSaving = false;
+
+  function customizeView() {
+    return document.querySelector("#" + VIEW_ID + " #customize-view");
+  }
+  function createCustomizeView(panel) {
+    const view = document.createElement("section");
+    view.id = "customize-view";
+    view.className = "shirobird-customize-page";
+    view.hidden = true;
+    // Static, trusted template. No untrusted API content is interpreted as HTML.
+    view.innerHTML = `
+      <div class="hero customize-hero">
+        <div><h1>Customize</h1>
+          <p>Choose which NetBird features and tabs appear in the navigation.</p></div>
+        <div class="actions">
+          <button type="button" class="secondary" id="customize-hide-paid">Hide premium</button>
+          <button type="button" class="secondary" id="customize-reset">Restore defaults</button>
+        </div>
+      </div>
+      <section class="panel customize-panel">
+        <div class="panelhead">
+          <div><h2>Feature visibility</h2>
+            <p>Settings apply to all administrators of this ShiroBird installation.</p></div>
+          <span class="status" id="customize-count">Loading…</span>
+        </div>
+        <div id="customize-groups" class="customize-groups"></div>
+        <p id="customize-message" class="customize-note" role="status"></p>
+        <p class="customize-note">Only the interface is affected. Services, NetBird
+          permissions and licenses are unchanged. Customize remains available.</p>
+      </section>`;
+    panel.append(view);
+    view.querySelector("#customize-hide-paid").addEventListener("click", () => {
+      if (!customizeState) return;
+      const settings = Object.fromEntries(customizeState.features
+        .filter(feature => feature.paid).map(feature => [feature.id, false]));
+      if (Object.keys(settings).length) void saveCustomize({visibility: settings});
+    });
+    view.querySelector("#customize-reset").addEventListener("click", () => {
+      if (customizeState) void saveCustomize({reset: true});
+    });
+    return view;
+  }
+  function renderCustomize() {
+    const view = customizeView();
+    if (!view || !customizeState) return;
+    const host = view.querySelector("#customize-groups");
+    const {features, visibility: values} = customizeState;
+    const groups = new Map();
+    for (const feature of features) {
+      if (!groups.has(feature.group)) groups.set(feature.group, []);
+      groups.get(feature.group).push(feature);
+    }
+    const fragment = document.createDocumentFragment();
+    for (const [group, items] of groups.entries()) {
+      const section = document.createElement("section");
+      section.className = "customize-category";
+      const title = document.createElement("h3");
+      title.textContent = group;
+      section.append(title);
+      for (const feature of items) {
+        const row = document.createElement("label");
+        row.className = "customize-option";
+        const details = document.createElement("span");
+        details.className = "customize-option-label";
+        const name = document.createElement("span");
+        name.textContent = feature.label;
+        details.append(name);
+        if (feature.paid) {
+          const premium = document.createElement("span");
+          premium.className = "customize-premium";
+          premium.textContent = "Paid";
+          details.append(premium);
+        }
+        const toggle = document.createElement("input");
+        toggle.type = "checkbox";
+        toggle.setAttribute("role", "switch");
+        toggle.className = "customize-checkbox";
+        toggle.checked = values[feature.id] === true;
+        toggle.disabled = customizeSaving;
+        toggle.setAttribute("aria-label", "Show " + feature.label);
+        toggle.addEventListener("change", () => {
+          void saveCustomize({visibility: {[feature.id]: toggle.checked}});
+        });
+        const switchElement = document.createElement("span");
+        switchElement.className = "customize-switch";
+        switchElement.setAttribute("aria-hidden", "true");
+        row.append(details, toggle, switchElement);
+        section.append(row);
+      }
+      fragment.append(section);
+    }
+    host.replaceChildren(fragment);
+    view.querySelector("#customize-count").textContent =
+      Object.values(values).filter(Boolean).length + " / " + features.length + " shown";
+    view.querySelector("#customize-hide-paid").disabled = customizeSaving;
+    view.querySelector("#customize-reset").disabled = customizeSaving;
+  }
+  async function fetchCustomize(force = false) {
+    if (!force && Date.now() - customizeFetchedAt < (customizeState ? 45000 : 10000)) return;
+    if (customizeFetching) return customizeFetching;
+    customizeFetching = (async () => {
+      const view = customizeView();
+      if (!view) return;
+      const message = view.querySelector("#customize-message");
+      try {
+        const result = await fetch("/shirobird/api/customize", {
+          credentials: "same-origin", cache: "no-store",
+          headers: {"Accept": "application/json"}
+        });
+        if (!result.ok) throw Error("Unable to load settings (HTTP " + result.status + ")");
+        const value = await result.json();
+        if (!Array.isArray(value.features) || !value.visibility ||
+            typeof value.visibility !== "object") throw Error("Invalid server response");
+        customizeState = value;
+        customizeFetchedAt = Date.now();
+        receiveVisibility(value.visibility);
+        renderCustomize();
+        message.textContent = "";
+      } catch (error) {
+        customizeFetchedAt = Date.now();
+        message.textContent = error.message || "Unable to load Customize";
+      }
+    })();
+    try { await customizeFetching; } finally { customizeFetching = null; }
+  }
+  async function saveCustomize(change) {
+    if (customizeSaving || !customizeState) return;
+    const previous = customizeState;
+    const view = customizeView();
+    customizeSaving = true;
+    if (change.visibility) customizeState = {
+      ...previous, visibility: {...previous.visibility, ...change.visibility}
+    };
+    else if (change.reset === true) customizeState = {
+      ...previous, visibility: Object.fromEntries(
+        previous.features.map(feature => [feature.id, !feature.paid]))
+    };
+    renderCustomize();
+    const message = view.querySelector("#customize-message");
+    message.textContent = "Saving…";
+    try {
+      const response = await fetch("/shirobird/api/customize", {
+        method: "POST", credentials: "same-origin", cache: "no-store",
+        headers: {"Content-Type": "application/json",
+                  "X-ShiroBird-Action": "customize"},
+        body: JSON.stringify(change)
+      });
+      if (!response.ok) throw Error("HTTP " + response.status);
+      customizeState = await response.json();
+      customizeFetchedAt = Date.now();
+      receiveVisibility(customizeState.visibility);
+      message.textContent = "Changes saved.";
+    } catch (error) {
+      customizeState = previous;
+      message.textContent = "Save failed: " + (error.message || "unknown error");
+    } finally {
+      customizeSaving = false;
+      renderCustomize();
+    }
+  }
+
   function createPanel() {
     const panel = document.createElement("section");
     panel.id = VIEW_ID;
@@ -222,6 +492,7 @@
     frame.hidden = true;
     frame.addEventListener("load", () => { applyTheme(); sendPeersToFrame(); });
     panel.append(message, frame);
+    createCustomizeView(panel);
     document.body.append(panel);
     return panel;
   }
@@ -391,6 +662,11 @@
     if (panel) panel.style.backgroundColor = palette["--page"];
     const frame = panel && panel.querySelector("iframe");
     if (frame) frame.style.backgroundColor = palette["--page"];
+    const customize = panel && panel.querySelector("#customize-view");
+    if (customize) {
+      for (const [name, value] of Object.entries(palette))
+        customize.style.setProperty(name, value);
+    }
     if (frame && frame.contentWindow) {
       frame.contentWindow.postMessage({
         source: "shirobird-theme", dark, palette
@@ -402,6 +678,17 @@
     const page = selectedPage();
     if (!panel || !page) return;
     const frame = panel.querySelector("iframe");
+    const customize = panel.querySelector("#customize-view");
+    const customizing = page.slug === "customize";
+    if (customize) customize.hidden = !customizing || lastAuth <= 0;
+    if (customizing) {
+      // Never display stale SIEM content for an active Customize route.
+      frame.hidden = true;
+      panel.querySelector(".shirobird-auth-message").hidden = lastAuth > 0;
+      if (lastAuth > 0) void fetchCustomize();
+      applyTheme();
+      return;
+    }
     // If users open SIEM first, then Traffic Flow in the same SSO session,
     // load routing/policy metadata immediately rather than after token refresh.
     if (page.slug === "traffic-flow" && lastAuth > 0 &&
@@ -480,6 +767,7 @@
           ? "Only NetBird Owners and Admins can access ShiroBird."
           : "NetBird session verification failed.");
         lastAuth = Date.now();
+        void loadVisibility();
         if (selectedPage()?.slug === "traffic-flow") void updatePeerDirectory(token);
         // The child iframe remains hidden until it reports ready; do not
         // reveal its initial about:blank/loading surface.
@@ -518,6 +806,8 @@
         if (candidate) createNavigation(candidate);
       }
       refresh();
+      applyVisibility();
+      void preloadVisibility();
     });
   }
   new MutationObserver(reconcile).observe(document.documentElement, {
@@ -537,6 +827,7 @@
       requestAnimationFrame(positionPanel);
   }, {passive: true});
   window.setInterval(() => {
+    void preloadVisibility();
     if (selectedPage()) void netbirdLogin();
   }, 90000);
   document.addEventListener("click", event => {

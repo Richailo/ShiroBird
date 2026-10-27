@@ -74,3 +74,10 @@ Windows peers can now report locally audited **5156 permitted connections, 5157 
 Install the optional sensor on each authorized Windows peer from the `windows/` directory after enabling the appropriate audit policy. **No WFP audit change is made by default.** For deployment instructions, high-volume warnings, data source limits and rollback, read [Windows sensor setup](docs/windows-wfp.md).
 
 **Important distinction:** Windows WFP verdicts describe the Windows filtering system; they do not automatically prove which NetBird access policy allowed or blocked a connection. ShiroBird keeps `policy_decisions_available: false` until that linkage can be verified.
+
+## Docker release / Portainer
+
+A four-image release candidate (0.1.0-rc.1) with versioned Compose files,
+a non-destructive installer, GHCR publishing workflow and offline image export
+is described in [Docker release](docs/docker-release.md). The repository images
+must be published before remote pull; local builds work without a registry.

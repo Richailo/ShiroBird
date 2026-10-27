@@ -410,30 +410,6 @@ body.embedded .siem-grid .panel, body.embedded .flow-analytics-grid .panel {
 /* NetBird Traffic Events toolbar — matched to native dark/light dashboard. */
 .native-events-panel{overflow:visible}
 .native-events-heading{border-bottom:0;padding-bottom:8px}
-.native-stream-card{
-  display:flex;align-items:center;gap:12px;width:auto;max-width:100%;
-  margin:12px 20px 16px;padding:11px 14px;min-height:70px;
-  background:var(--surface);color:var(--text);
-  border:1px solid var(--stroke);border-radius:7px;text-align:left;
-}
-.native-stream-card:hover{background:var(--hover);color:var(--text);
-  border-color:var(--input-border)}
-.native-stream-icon{display:flex;align-items:center;justify-content:center;
-  width:39px;height:39px;flex:0 0 39px;color:#b496ea;
-  background:var(--soft);border-radius:7px}
-.native-stream-content{display:flex;flex-direction:column;min-width:0;gap:5px}
-.native-stream-content strong{font-size:12px;font-weight:600;white-space:nowrap}
-.native-stream-content small{font-size:11px;color:var(--muted);
-  line-height:1.35;overflow-wrap:anywhere}
-.native-stream-status{align-self:flex-start;margin-left:auto;display:flex;
-  align-items:center;gap:7px;white-space:nowrap;color:var(--muted);
-  font-size:11px;font-weight:600}
-.native-stream-status:before{content:"";width:7px;height:7px;
-  border-radius:50%;background:var(--muted)}
-.native-stream-status.receiving{color:var(--success)}
-.native-stream-status.receiving:before{background:var(--success)}
-.native-stream-status.offline{color:var(--danger)}
-.native-stream-status.offline:before{background:var(--danger)}
 .native-toolbar{display:flex;flex-wrap:wrap;gap:9px;align-items:center;
   padding:0 20px 17px;position:relative;isolation:isolate}
 .native-toolbar select,.native-toolbar input,.native-tool-button{
@@ -478,9 +454,28 @@ body.embedded .siem-grid .panel, body.embedded .flow-analytics-grid .panel {
 .native-chips{padding:0 20px 12px;display:flex;align-items:center;
   gap:7px;flex-wrap:wrap}
 .native-chips[hidden]{display:none!important}
-.native-filter-chip{padding:5px 8px;border-radius:5px;
+.native-filter-chip{
+  display:inline-flex;align-items:center;gap:7px;max-width:100%;
+  padding:3px 4px 3px 9px;border-radius:6px;
   border:1px solid var(--stroke);color:var(--muted);
-  background:var(--soft);font-size:11px}
+  background:var(--soft);font-size:11px;line-height:1.4;
+}
+.native-filter-chip-label{min-width:0;overflow-wrap:anywhere}
+.native-filter-chip-remove{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:21px;height:21px;min-height:21px;flex:0 0 21px;
+  margin:0;padding:3px;border:0;border-radius:4px;
+  background:transparent;color:var(--muted);box-shadow:none;
+  cursor:pointer;
+}
+.native-filter-chip-remove svg{display:block;width:13px;height:13px}
+.native-filter-chip-remove:hover,
+.native-filter-chip-remove:focus-visible{
+  background:var(--hover);color:var(--text);
+}
+.native-filter-chip-remove:focus-visible{
+  outline:2px solid var(--primary);outline-offset:1px;
+}
 .native-pagination{padding:14px 20px;display:flex;align-items:center;
   flex-wrap:wrap;justify-content:space-between;gap:10px;
   border-top:1px solid var(--stroke);color:var(--muted);font-size:12px}
@@ -492,10 +487,8 @@ body.embedded .siem-grid .panel, body.embedded .flow-analytics-grid .panel {
   .native-toolbar{row-gap:9px}
 }
 @media(max-width:610px){
-  .native-stream-card{margin-inline:12px}
   .native-toolbar{padding-inline:12px}
   .native-chips{padding-inline:12px}
-  .native-stream-status{font-size:10px}
   .native-toolbar select{flex:1;max-width:none}
   .native-pagination{padding-inline:12px}
 }
@@ -666,14 +659,28 @@ body>.nb-filter-portal{
   position:fixed!important;z-index:2147482000!important;
   margin:0!important;display:grid;gap:15px;
   padding:18px;border:1px solid var(--input-border);
-  border-radius:9px;background:var(--surface);color:var(--text);
+  border-radius:9px;background-color:var(--surface)!important;color:var(--text);
   box-shadow:0 18px 42px rgba(0,0,0,.28),0 5px 12px rgba(0,0,0,.12);
   overflow-y:auto;overscroll-behavior:contain;
-  opacity:1;isolation:isolate;
+  opacity:1!important;isolation:isolate;contain:paint;
 }
 body>.nb-filter-portal[hidden]{display:none!important}
-body>.nb-filter-portal>strong{font-size:13px;line-height:1.4;
-  color:var(--text);font-weight:600}
+body>.nb-filter-portal .nb-filter-head{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding-bottom:10px;border-bottom:1px solid var(--stroke);
+}
+body>.nb-filter-portal .nb-filter-head strong{
+  font-size:13px;line-height:1.4;color:var(--text);font-weight:600;
+}
+body>.nb-filter-portal .nb-filter-close{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:28px;height:28px;min-height:28px;padding:0;flex:0 0 28px;
+  border:1px solid transparent;border-radius:6px;
+  background:transparent;color:var(--muted);box-shadow:none;
+}
+body>.nb-filter-portal .nb-filter-close:hover{
+  background:var(--hover);color:var(--text);border-color:var(--stroke);
+}
 body>.nb-filter-portal>label{display:grid;gap:8px;font-size:12px;
   font-weight:500;color:var(--muted)}
 body>.nb-filter-portal .nb-select-host{display:flex;width:100%;max-width:100%}

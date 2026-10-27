@@ -1,0 +1,31 @@
+# Native-flow requires an adapted NetBird management server and secret files.
+services:
+  shirobird:
+    environment:
+      SHIROBIRD_NATIVE_API_URL: http://native-flow:8085
+      SHIROBIRD_NATIVE_API_TOKEN_FILE: /run/secrets/native_api_token
+    secrets: [native_api_token]
+  native-flow:
+    image: ${SHIROBIRD_RELEASE_NATIVE_IMAGE:-ghcr.io/richailo/shirobird-native-flow:0.1.0-rc.1}
+    restart: unless-stopped
+    environment:
+      SHIROBIRD_FLOW_SECRET_FILE: /run/secrets/native_flow_secret
+      SHIROBIRD_NATIVE_API_TOKEN_FILE: /run/secrets/native_api_token
+      SHIROBIRD_NATIVE_DATA: /data
+    secrets: [native_flow_secret, native_api_token]
+    volumes: [native_flow_data:/data]
+    ports: ["${SHIROBIRD_NATIVE_BIND:-127.0.0.1}:8084:8084"]
+    read_only: true
+    tmpfs: ["/tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    mem_limit: 256m
+    init: true
+secrets:
+  native_flow_secret:
+    file: ${SHIROBIRD_NATIVE_FLOW_SECRET_FILE:-./extensions/native-flow/flow-secret}
+  native_api_token:
+    file: ${SHIROBIRD_NATIVE_API_SECRET_FILE:-./extensions/native-flow/api-token}
+volumes:
+  native_flow_data:

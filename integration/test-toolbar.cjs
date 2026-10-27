@@ -6,7 +6,7 @@ const html=fs.readFileSync(path.join(__dirname,"..","web","index.html"),"utf8");
 const js=fs.readFileSync(path.join(__dirname,"..","web","app.js"),"utf8");
 const css=fs.readFileSync(path.join(__dirname,"..","web","style.css"),"utf8");
 const ids=[
-  "native-stream-card","native-stream-status","native-search","native-range",
+  "native-search","native-range",
   "native-user","native-filter-toggle","native-advanced","native-protocol",
   "native-event-type","native-custom-dates","native-from","native-to",
   "native-page-size","native-view","native-refresh","native-clear","native-prev","native-next",
@@ -16,7 +16,8 @@ for(const id of ids){
   assert.match(html,new RegExp('id="'+id+'"'),"missing "+id);
 }
 assert.equal((html.match(/id="native-next"/g)||[]).length,1);
-assert.match(css,/\.native-stream-status\.receiving/);
+assert.doesNotMatch(html,/id="native-stream-card"/);
+assert.doesNotMatch(js,/renderNativeStreamState|native-stream-card/);
 assert.match(css,/\.native-advanced\[hidden\]/);
 assert.match(js,/filtered:"1"/);
 assert.match(js,/compact:\$\("native-view"\)\.value==="compact"\?"1":"0"/);
@@ -64,5 +65,7 @@ assert.deepEqual(group.reporters,["a","b"]);
 assert.deepEqual(group.ips,["100.64.0.10","100.64.0.11"]);
 assert.deepEqual(check.nativeNameIPs("peer b"),["100.64.0.11"]);
 assert.equal(check.nativeUserPeerFilter("user-missing").reporters.length,0);
-assert.match(js,/shirobird-request-tab/);
+assert.doesNotMatch(js,/shirobird-request-tab/);
+assert.match(html,/id="native-table"/);
+assert.match(html,/id="siem-view"/);
 console.log("NetBird-style toolbar controls, time ranges, real user/peer filters and icon controls passed.");

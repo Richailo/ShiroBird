@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>ShiroBird · NetBird observability</title>
-  <link rel="stylesheet" href="style.css">
-  <script src="app.js" defer></script>
+  <link rel="stylesheet" href="style.css?v=20261027-remove-stream">
+  <script src="app.js?v=20261027-remove-stream" defer></script>
 </head>
 <body>
   <header>
@@ -45,22 +45,6 @@
             <p id="native-note" aria-live="polite">Checking native NetBird flow receiver…</p>
           </div>
         </div>
-        <button id="native-stream-card" class="native-stream-card" type="button"
-                aria-label="Open SIEM Integration to inspect event streaming">
-          <span class="native-stream-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="19" height="19" fill="none"
-                 stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-              <circle cx="12" cy="12" r="2"/>
-              <path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4"/>
-              <path d="M4.5 4.5a11 11 0 0 0 0 15M19.5 4.5a11 11 0 0 1 0 15"/>
-            </svg>
-          </span>
-          <span class="native-stream-content">
-            <strong>Event Streaming</strong>
-            <small id="native-stream-description">Checking native receiver…</small>
-          </span>
-          <span id="native-stream-status" class="native-stream-status">Checking…</span>
-        </button>
         <div class="native-toolbar" role="search" aria-label="Native traffic event filters">
           <label class="native-search-field">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none"
@@ -89,7 +73,15 @@
             <button id="native-filter-toggle" class="native-tool-button" type="button"
                     aria-expanded="false" aria-controls="native-advanced">Filter</button>
             <div id="native-advanced" class="native-advanced" hidden>
-              <strong>Traffic filters</strong>
+              <div class="nb-filter-head">
+                <strong>Traffic filters</strong>
+                <button id="native-filter-close" class="nb-filter-close" type="button"
+                        aria-label="Close traffic filters" title="Close filters">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+                       stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                       aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+              </div>
               <label>Protocol
                 <select id="native-protocol">
                   <option value="0">All protocols</option>

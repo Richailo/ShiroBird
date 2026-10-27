@@ -1,0 +1,5 @@
+services:
+  shirobird-customize:
+    build: {context: ".", dockerfile: packaging/docker/customize.Dockerfile}
+  shirobird-bridge:
+    build: {context: ".", dockerfile: packaging/docker/bridge.Dockerfile}

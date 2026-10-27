@@ -4,3 +4,16 @@ tests
 .env
 data
 *.sqlite3
+work/
+backups/
+releases/
+windows/
+**/__pycache__/
+**/*.pyc
+**/*.log
+**/*.bak
+*.tar.gz
+extensions/native-flow/flow-secret
+extensions/native-flow/api-token
+extensions/native-flow/.data/
+extensions/native-flow/production-before.json

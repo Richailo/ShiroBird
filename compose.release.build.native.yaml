@@ -1,0 +1,3 @@
+services:
+  native-flow:
+    build: {context: "./extensions/native-flow", dockerfile: Dockerfile}

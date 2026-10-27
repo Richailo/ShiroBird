@@ -19,7 +19,7 @@ assert.match(html,/<div id="legacy-local-observability" hidden aria-hidden="true
 assert.ok(!app.includes('$("flow-groups")'),"renderer cannot access removed DOM");
 assert.ok(!app.includes('$("total")'),"old conntrack counts not shown as native");
 const start=app.indexOf("function renderNativeSummary(data) {");
-const end=app.indexOf("function renderNativeStreamState(data) {",start);
+const end=app.indexOf("function populateNativeUsers() {",start);
 assert.ok(start>0 && end>start);
 const nodes=new Map();
 const $=id=>{
