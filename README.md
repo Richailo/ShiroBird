@@ -1,11 +1,63 @@
-# ShiroBird
+<div align="center">
+  <a href="https://github.com/Richailo/ShiroBird">
+    <img src="docs/media/shirobird-banner.svg" alt="ShiroBird — Traffic visibility for self-hosted NetBird" width="100%" />
+  </a>
+  <p>
+    <a href="https://github.com/Richailo/ShiroBird/actions/workflows/ci.yml"><img src="https://github.com/Richailo/ShiroBird/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status" /></a>
+    <a href="https://github.com/Richailo/ShiroBird/releases/tag/v0.1.0-rc.1"><img src="https://img.shields.io/github/v/release/Richailo/ShiroBird?include_prereleases&amp;label=release" alt="Latest release" /></a>
+    <a href="LICENSE"><img src="https://img.shields.io/github/license/Richailo/ShiroBird?color=orange" alt="MIT license" /></a>
+    <a href="https://github.com/Richailo?tab=packages"><img src="https://img.shields.io/badge/Docker-GHCR-2496ED?logo=docker&amp;logoColor=white" alt="Public Docker images on GHCR" /></a>
+  </p>
+  <p><strong>Self-hosted traffic observability and SIEM export, integrated into the NetBird dashboard.</strong></p>
+  <p>
+    <a href="#-quick-start">Quick start</a> ·
+    <a href="#-screenshots">Screenshots</a> ·
+    <a href="#-features">Features</a> ·
+    <a href="docs/docker-release.md">Docker guide</a> ·
+    <a href="https://github.com/Richailo/ShiroBird/releases">Releases</a>
+  </p>
+</div>
 
-**Native-looking, self-hosted NetBird traffic observability and SIEM export.**
-ShiroBird is an independent community project, not affiliated with NetBird.
+> [!IMPORTANT]
+> **Current release: `v0.1.0-rc.1` (pre-release).** ShiroBird is an independent community project, not affiliated with or endorsed by NetBird, and not a Docker Official Image.
 
-## Install from public Docker images (0.1.0-rc.1 pre-release)
+ShiroBird adds a NetBird-styled **Traffic Flow** view and **SIEM Integration** to an existing self-hosted NetBird dashboard. Investigate observed connections, inspect reporting coverage and export event metadata — without changing NetBird's client software or its upstream dashboard code.
 
-On a new Linux server with Docker Engine, Compose v2 and OpenSSL, optionally hosting the original `netbird-dashboard` container:
+## 📸 Screenshots
+<p align="center">
+  <a href="docs/media/traffic-flow-demo.png"><img src="docs/media/traffic-flow-demo.png" width="100%" alt="ShiroBird Traffic Flow: dark theme, peer activity, native statistics and event table" /></a>
+  <br />
+  <sub><strong>Traffic Flow</strong> · native reports, event types, peer metadata and connection details</sub>
+</p>
+
+<table>
+  <tr>
+    <td width="50%">
+      <a href="docs/media/traffic-filters-demo.png"><img src="docs/media/traffic-filters-demo.png" alt="Traffic Flow filters in light theme" width="100%" /></a>
+      <p align="center"><strong>Traffic filters</strong> · light theme</p>
+    </td>
+    <td width="50%">
+      <a href="docs/media/siem-integration-demo.png"><img src="docs/media/siem-integration-demo.png" alt="SIEM Integration: Wazuh configuration and export status" width="100%" /></a>
+      <p align="center"><strong>SIEM Integration</strong> · Wazuh and JSONL</p>
+    </td>
+  </tr>
+</table>
+
+<sub>These are screenshots of the ShiroBird UI rendered with **synthetic demonstration data** (documentation IP ranges and fictional devices). They do not depict a real network or verified live traffic.</sub>
+
+## ✨ Features
+
+| Observe | Investigate | Export & integrate |
+| --- | --- | --- |
+| ✓ Native peer report summaries and recent activity | ✓ Search, date ranges, sorting and filters | ✓ Local JSONL event export |
+| ✓ Peer names, endpoints, protocols and ports | ✓ Connection timelines and event details | ✓ CSV and NDJSON downloads |
+| ✓ Optional Linux conntrack observations | ✓ Reporting peer and router context where available | ✓ Wazuh agent integration |
+| ✓ Optional Windows WFP telemetry | ✓ Light and dark NetBird-style UI | ✓ Optional UDP Syslog forwarding |
+
+**Native Flow receiver:** An optional component for compatible NetBird management deployments. Installing the receiver alone does not enable reporting from NetBird peers.
+
+## 🚀 Quick start
+On a **new Linux deployment** with Docker Engine, Docker Compose v2 and OpenSSL installed:
 
 ```bash
 git clone --branch v0.1.0-rc.1 --depth 1 https://github.com/Richailo/ShiroBird.git
@@ -13,69 +65,76 @@ cd ShiroBird
 sudo SHIROBIRD_INSTALL_MODE=pull bash scripts/install-release.sh
 ```
 
-[Download the GitHub release](https://github.com/Richailo/ShiroBird/releases/tag/v0.1.0-rc.1) or see [Docker / Portainer setup, security and rollback](docs/docker-release.md). The installer refuses to replace an existing ShiroBird container; migrations require a separate backup and upgrade procedure.
+The installer generates local credentials, uses [public versioned GHCR images](https://github.com/Richailo?tab=packages), keeps state in `./data`, and detects an existing `netbird-dashboard` container. Without NetBird, the standalone API/UI binds to `127.0.0.1:8666`.
 
-The installer automatically:
-- Detects NetBird Dashboard and its Docker network.
-- Generates internal signing and collector keys securely without user input.
-- Runs the ShiroBird monitoring server and a separate bridge on port **8082**.
-- Adds an expandable **ShiroBird** group to the original NetBird sidebar, with **Traffic Flow** and **SIEM Integration** subpages and matching dark/light theme.
-- Reuses the *existing NetBird OIDC login* (Owner and Admin roles only). **No ShiroBird login screen, manual token creation, or personal access tokens required.**
-- Leaves NetBird containers, client software, OIDC configuration and server files unchanged.
+> [!CAUTION]
+> The installer intentionally **refuses to replace an existing ShiroBird container**. Back up `.env` and `data/` before upgrading a live installation. Follow the [Docker release guide](docs/docker-release.md) for upgrades and rollback.
 
-**Reverse proxy integration**: point only the NetBird Dashboard web upstream at port **8082** instead of 8080; preserve the original NetBird management API, OAuth2, gRPC, relay and WebSocket routes. The bridge listens on loopback by default. If your reverse proxy runs on a different host, set `SHIROBIRD_BRIDGE_BIND=YOUR_NETBIRD_HOST_PRIVATE_IP` in `.env`, run the installer again and restrict port 8082 to your proxy. See [detailed NetBird integration](docs/netbird-tab.md).
+### Integrate with your NetBird dashboard
 
-## What it does
+For a supported self-hosted NetBird deployment, point **only the Dashboard HTTP upstream** in your reverse proxy to the ShiroBird bridge on port `8082` (instead of dashboard port `8080`). Keep NetBird's management API, OIDC, gRPC, relay and WebSocket routes unchanged.
 
-- Live flow monitoring (SSE), source and destination IPs, protocols, ports, optional conntrack counters.
-- Linux conntrack collection without patching NetBird or decrypting packets.
-- JSONL export for Wazuh, CSV/NDJSON download, optional UDP syslog.
-- Searchable table, counts, limited SQLite history and log rotation.
-- Independent Docker Compose service and lightweight Nginx bridge.
+The bridge listens on loopback by default. If your proxy runs elsewhere, bind it to an appropriate **private** interface and restrict access using your firewall. Use HTTPS for browser access.
 
-## Enable traffic monitoring on this Linux host
+**[Full NetBird integration guide →](docs/netbird-tab.md)** · **[Docker / Portainer guide →](docs/docker-release.md)**
 
-```bash
-sudo apt-get install -y conntrack
-sudo SHIROBIRD_ENABLE_ACCOUNTING=1 bash scripts/install-collector.sh
+### Registry images
+
+| Component | Docker image |
+| --- | --- |
+| Core dashboard and API | `ghcr.io/richailo/shirobird:0.1.0-rc.1` |
+| Dashboard bridge | `ghcr.io/richailo/shirobird-bridge:0.1.0-rc.1` |
+| Customize service | `ghcr.io/richailo/shirobird-customize:0.1.0-rc.1` |
+| Optional Native Flow receiver | `ghcr.io/richailo/shirobird-native-flow:0.1.0-rc.1` |
+
+Published for **Linux AMD64 and ARM64**. Offline AMD64 archives and SHA-256 checksums are included in the [pre-release downloads](https://github.com/Richailo/ShiroBird/releases/tag/v0.1.0-rc.1).
+## 🧩 How it fits together
+
+```mermaid
+flowchart LR
+    A["NetBird Dashboard"] --> B["ShiroBird bridge"]
+    B --> C["ShiroBird UI & API"]
+    C --> D[("Local event store / JSONL")]
+    D --> E["Wazuh / SIEM"]
+    F["Linux conntrack sensor"] --> C
+    G["Optional Windows WFP sensor"] --> C
+    H["Optional Native Flow receiver"] --> C
 ```
 
-The collector runs independently from the NetBird clients and only observes selected IPv4/IPv6 CIDRs. For central observation, run the collector only on the NetBird routing server; no client changes are needed. IPv4/IPv6 overlay filters are detected automatically. See [central setup, verified scope and rollback](docs/central-observation.md). NetBird management/relay cannot see decrypted direct P2P traffic. Byte counters require kernel connection-tracking accounting; by default this can be disabled. See [Wazuh integration](docs/wazuh.md).
+ShiroBird is an **observability extension**, not a NetBird policy enforcement engine. NetBird's original authentication and network functions stay in charge. The embedded UI reuses an authenticated NetBird session with server-side identity and role verification; the standalone service uses its own administrator token.
 
-## Standalone (without NetBird Dashboard)
+## 📚 Documentation
 
-The same installer falls back to standalone mode on `127.0.0.1:8666` and retains separate admin-token authentication. Only the embedded NetBird edition removes manual login.
+| Guide | Description |
+| --- | --- |
+| [Docker release & Portainer](docs/docker-release.md) | Install, configuration, backup and rollback |
+| [NetBird integration](docs/netbird-tab.md) | Dashboard bridge, routing and reverse proxy |
+| [Traffic Flow](docs/traffic-flow.md) | Coverage, metrics and limitations |
+| [Central observation](docs/central-observation.md) | Linux routing-server monitoring |
+| [Windows WFP sensor](docs/windows-wfp.md) | Optional Windows connection audit data |
+| [Wazuh integration](docs/wazuh.md) | Export and SIEM collection |
+| [Security](docs/security.md) | Authentication and deployment precautions |
+## 🔐 Security & limitations
 
-## Upgrade and uninstall
+- **Traffic visibility depends on sensors and reporting coverage.** A Linux conntrack sensor only observes connections passing through its host. Direct P2P traffic elsewhere is not automatically visible.
+- **Do not interpret observed connections as verified NetBird policy allow/deny decisions.** Windows WFP blocked/allowed events describe the Windows filtering system, not necessarily a specific NetBird rule.
+- **Native Flow needs a compatible management adapter.** Receiver installation alone does not activate peer reporting.
+- **Syslog over UDP is unencrypted** and has no delivery acknowledgement. Use a trusted segment or protected tunnel and verify ingestion at your SIEM.
+- Keep `.env`, API tokens, logs and `data/` private. Use HTTPS, restrict the bridge port, and review [the security guide](docs/security.md).
 
-Back up `.env` and `data/` before changing a running deployment. The release installer deliberately does not overwrite an existing ShiroBird container. Consult [Docker release update and rollback instructions](docs/docker-release.md) or [NetBird dashboard rollback](docs/netbird-tab.md); to detach ShiroBird, restore the dashboard reverse proxy upstream to port 8080.
+## 🤝 Community & development
 
-## Security and limitations
+Bug reports and proposals are welcome in [GitHub Issues](https://github.com/Richailo/ShiroBird/issues). Include the ShiroBird version, NetBird deployment type, reproduction steps and **redacted** logs. To run the Python tests:
 
-The browser adapter reads the current NetBird OIDC access token **only from same-origin session storage** and sends it to `/shirobird/api/netbird-session` over the existing HTTPS origin. ShiroBird independently asks NetBird's management API to verify the token and Owner/Admin role. It issues a short-lived (3-minute), scoped, HttpOnly Secure session cookie. No OIDC token is written to ShiroBird's database or log files. This grants no new NetBird privileges and is not a replacement for licensed Enterprise telemetry.
+```bash
+python3 -m unittest discover -s tests -v
+```
 
-Do not expose port 8082 publicly; use HTTPS and administrative network restrictions. Treat traffic metadata as potentially sensitive. View [security](docs/security.md), run tests with `python3 -m unittest discover -s tests -v`, and keep `.env` private.
+The `main` branch tracks active development. For reproducible deployments, **use a tagged release** rather than `main`.
 
-MIT License — © 2026 ShiroBird contributors.
+---
 
-### Traffic Flow analytics and sensor coverage
-
-The Traffic Flow page now includes time windows, aggregated conntrack sessions, trending, top destinations, per-peer IP/name enrichment from NetBird's read-only Peers API, and authenticated sensor heartbeats. The collector reports if Linux kernel byte accounting is disabled, so an empty or zero-byte dashboard is not mistaken for validated network coverage.
-
-**Important:** Traffic Flow does not yet provide NetBird policy allow/deny verdicts, blocked packet counts or verified routing policy IDs. Observing a conntrack NEW event does not prove a NetBird policy allowed it. Install sensors on actual Linux peers/routing gateways to capture their traffic. See [traffic collection, kernel accounting and coverage limitations](docs/traffic-flow.md).
-
-### Windows Filtering Platform (WFP) traffic sensor
-
-Windows peers can now report locally audited **5156 permitted connections, 5157 blocked connections and 5152 dropped packets**, with process path, direction, Security record and WFP runtime filter IDs. The collector is a separate SYSTEM scheduled task and does not modify NetBird. Linux conntrack continues to provide session start/end and byte counts when available.
-
-Install the optional sensor on each authorized Windows peer from the `windows/` directory after enabling the appropriate audit policy. **No WFP audit change is made by default.** For deployment instructions, high-volume warnings, data source limits and rollback, read [Windows sensor setup](docs/windows-wfp.md).
-
-**Important distinction:** Windows WFP verdicts describe the Windows filtering system; they do not automatically prove which NetBird access policy allowed or blocked a connection. ShiroBird keeps `policy_decisions_available: false` until that linkage can be verified.
-
-## Docker release / Portainer
-
-Four public versioned images for Linux AMD64 and ARM64 are published on GHCR for
-[ShiroBird 0.1.0-rc.1 (pre-release)](https://github.com/Richailo/ShiroBird/releases/tag/v0.1.0-rc.1).
-The [Docker release guide](docs/docker-release.md) covers pull-mode installation,
-NetBird integration, Portainer, offline images, backups and rollback.
-ShiroBird is not a Docker Official Image or an official NetBird product.
+<p align="center">
+  Released under the <a href="LICENSE">MIT License</a> ·
+  Built independently for the self-hosted NetBird community.
+</p>

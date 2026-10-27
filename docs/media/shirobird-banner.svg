@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-labelledby="title desc">
+<title id="title">ShiroBird — Traffic visibility for self-hosted NetBird</title>
+<desc id="desc">Orange stylized bird with network trails and the ShiroBird wordmark on a dark background.</desc>
+<defs>
+ <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#16191e"/><stop offset="1" stop-color="#262b31"/></linearGradient>
+ <linearGradient id="hot" x1="0" x2="1" y1=".3" y2=".7"><stop stop-color="#ffae67"/><stop offset="1" stop-color="#e85d21"/></linearGradient>
+ <radialGradient id="glow"><stop stop-color="#f78334" stop-opacity=".15"/><stop offset="1" stop-color="#f78334" stop-opacity="0"/></radialGradient>
+ <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#fff" stroke-opacity=".035"/></pattern>
+</defs>
+<rect width="1200" height="300" rx="20" fill="url(#bg)"/>
+<rect width="1200" height="300" rx="20" fill="url(#grid)"/>
+<circle cx="950" cy="140" r="280" fill="url(#glow)"/>
+<path d="M775 216 Q835 190 864 135 T954 109 T1077 75 L1200 69" fill="none" stroke="#f68330" stroke-opacity=".31" stroke-width="2"/>
+<path d="M775 249 Q846 225 873 188 T969 177 T1095 140 L1200 120" fill="none" stroke="#e1e7f0" stroke-opacity=".13" stroke-width="2"/>
+<path d="M792 83 Q865 105 905 80 T1012 45 T1130 39 L1200 52" fill="none" stroke="#f68330" stroke-opacity=".2" stroke-width="2"/>
+<g fill="#f68330"><circle cx="864" cy="135" r="5"/><circle cx="954" cy="109" r="4"/><circle cx="1077" cy="75" r="5"/></g>
+<g fill="#e1e7f0" fill-opacity=".52"><circle cx="873" cy="188" r="4"/><circle cx="969" cy="177" r="5"/><circle cx="1095" cy="140" r="3"/></g>
+<g transform="translate(69 77)">
+ <rect width="114" height="114" rx="26" fill="#24282e" stroke="#686e78" stroke-opacity=".28"/>
+ <path d="M21 59c24-21 47-25 73-27-13 7-26 19-31 27 15-2 25-7 37-11-19 19-37 33-68 34l16-18-27-5Z" fill="url(#hot)"/>
+ <path d="M31 45c17 5 32 4 49-4" fill="none" stroke="#ffcb9b" stroke-width="3" stroke-linecap="round" opacity=".75"/>
+ <circle cx="85" cy="31" r="5" fill="#ffbb85"/>
+</g>
+<text x="213" y="130" fill="#fff" font-family="DejaVu Sans,Arial,sans-serif" font-size="65" font-weight="700" letter-spacing="-2">Shiro<tspan fill="#f78a3b">Bird</tspan></text>
+<text x="218" y="172" fill="#abb4c2" font-family="DejaVu Sans,Arial,sans-serif" font-size="20">Traffic visibility for self-hosted NetBird</text>
+<line x1="218" y1="196" x2="590" y2="196" stroke="#e1e7f0" stroke-opacity=".14"/>
+<text x="218" y="226" fill="#c1c8d2" font-family="DejaVu Sans,Arial,sans-serif" font-size="15" letter-spacing="1.1">OBSERVE  ·  INVESTIGATE  ·  EXPORT</text>
+<text x="1152" y="272" text-anchor="end" fill="#8d98a6" font-family="DejaVu Sans,Arial,sans-serif" font-size="12">INDEPENDENT OPEN SOURCE PROJECT</text>
+</svg>
