@@ -38,25 +38,38 @@ jobs:
             if curl -fsS --max-time 2 http://127.0.0.1:8082/shirobird/healthz; then break; fi
             sleep 2
           done
-          curl -fsS http://127.0.0.1:8082/ | grep -F 'shirobird-integration/bridge.js'
-          curl -fsS http://127.0.0.1:8082/shirobird-integration/bridge.js | grep -F 'left-navigation-item'
-          curl -fsS http://127.0.0.1:8082/shirobird-integration/bridge.js | grep -F 'Traffic Flow'
-          curl -fsS http://127.0.0.1:8082/shirobird-integration/bridge.js | grep -F 'SIEM Integration'
-          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=siem-integration' | grep -F 'id="siem-view"'
+          # Download before checking: avoids premature pipe closure and adds test diagnostics.
+          curl -fsS http://127.0.0.1:8082/ -o /tmp/shirobird-smoke-0.txt
+          grep -Fq 'shirobird-integration/bridge.js' /tmp/shirobird-smoke-0.txt || { echo "::error::Dashboard response missing expected text"; head -c 500 /tmp/shirobird-smoke-0.txt; exit 1; }
+          curl -fsS http://127.0.0.1:8082/shirobird-integration/bridge.js -o /tmp/shirobird-smoke-1.txt
+          grep -Fq 'left-navigation-item' /tmp/shirobird-smoke-1.txt || { echo "::error::Dashboard response missing expected text"; head -c 500 /tmp/shirobird-smoke-1.txt; exit 1; }
+          curl -fsS http://127.0.0.1:8082/shirobird-integration/bridge.js -o /tmp/shirobird-smoke-2.txt
+          grep -Fq 'Traffic Flow' /tmp/shirobird-smoke-2.txt || { echo "::error::Dashboard response missing expected text"; head -c 500 /tmp/shirobird-smoke-2.txt; exit 1; }
+          curl -fsS http://127.0.0.1:8082/shirobird-integration/bridge.js -o /tmp/shirobird-smoke-3.txt
+          grep -Fq 'SIEM Integration' /tmp/shirobird-smoke-3.txt || { echo "::error::Dashboard response missing expected text"; head -c 500 /tmp/shirobird-smoke-3.txt; exit 1; }
+          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=siem-integration' -o /tmp/shirobird-smoke-4.txt
+          grep -Fq 'id="siem-view"' /tmp/shirobird-smoke-4.txt || { echo "::error::Dashboard response missing expected text"; head -c 500 /tmp/shirobird-smoke-4.txt; exit 1; }
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/api/stats)" = "401"
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/api/siem/status)" = "401"
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/api/traffic/analytics)" = "401"
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/api/traffic/native?filtered=1)" = "401"
-          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=traffic-flow' | grep -F 'id="native-stream-card"'
-          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=traffic-flow' | grep -F 'id="native-page-size"'
+          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=traffic-flow' -o /tmp/shirobird-smoke-5.txt
+          grep -Fq 'id="native-stream-card"' /tmp/shirobird-smoke-5.txt || { echo "::error::Dashboard response missing expected text"; head -c 500 /tmp/shirobird-smoke-5.txt; exit 1; }
+          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=traffic-flow' -o /tmp/shirobird-smoke-6.txt
+          grep -Fq 'id="native-page-size"' /tmp/shirobird-smoke-6.txt || { echo "::error::Dashboard response missing expected text"; head -c 500 /tmp/shirobird-smoke-6.txt; exit 1; }
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/api/traffic/sensors)" = "401"
-          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=traffic-flow' | grep -F 'id="native-stat-total"'
-          ! curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=traffic-flow' | grep -F 'Aggregated traffic flows'
-          curl -fsS http://127.0.0.1:8082/shirobird/icons/windows.svg | grep -F '<svg'
-          curl -fsS http://127.0.0.1:8082/shirobird/icons/linux.svg | grep -F '<svg'
+          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=traffic-flow' -o /tmp/shirobird-smoke-7.txt
+          grep -Fq 'id="native-stat-total"' /tmp/shirobird-smoke-7.txt || { echo "::error::Dashboard response missing expected text"; head -c 500 /tmp/shirobird-smoke-7.txt; exit 1; }
+          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=traffic-flow' -o /tmp/shirobird-smoke-8.txt
+          if grep -Fq 'Aggregated traffic flows' /tmp/shirobird-smoke-8.txt; then echo "::error::Unexpected UI text present"; exit 1; fi
+          curl -fsS http://127.0.0.1:8082/shirobird/icons/windows.svg -o /tmp/shirobird-smoke-9.txt
+          grep -Fq '<svg' /tmp/shirobird-smoke-9.txt || { echo "::error::Dashboard response missing expected text"; head -c 500 /tmp/shirobird-smoke-9.txt; exit 1; }
+          curl -fsS http://127.0.0.1:8082/shirobird/icons/linux.svg -o /tmp/shirobird-smoke-10.txt
+          grep -Fq '<svg' /tmp/shirobird-smoke-10.txt || { echo "::error::Dashboard response missing expected text"; head -c 500 /tmp/shirobird-smoke-10.txt; exit 1; }
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/icons/no-such-icon.svg)" = "404"
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8082/shirobird/api/siem/syslog)" = "401"
-          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=siem-integration' | grep -F 'id="syslog-form"'
+          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=siem-integration' -o /tmp/shirobird-smoke-11.txt
+          grep -Fq 'id="syslog-form"' /tmp/shirobird-smoke-11.txt || { echo "::error::Dashboard response missing expected text"; head -c 500 /tmp/shirobird-smoke-11.txt; exit 1; }
           curl -fsS -D /tmp/shirobird-headers -o /dev/null http://127.0.0.1:8082/shirobird/
           grep -qi '^X-Frame-Options: SAMEORIGIN' /tmp/shirobird-headers
           test "$(curl -fsS http://127.0.0.1:8082/ | grep -o 'shirobird-integration/bridge.js' | wc -l)" -eq 1
