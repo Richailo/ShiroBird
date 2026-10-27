@@ -3,15 +3,17 @@
 **Native-looking, self-hosted NetBird traffic observability and SIEM export.**
 ShiroBird is an independent community project, not affiliated with NetBird.
 
-## Install (one command)
+## Install from public Docker images (0.1.0-rc.1 pre-release)
 
-On the Linux machine that runs the original `netbird-dashboard` Docker container:
+On a new Linux server with Docker Engine, Compose v2 and OpenSSL, optionally hosting the original `netbird-dashboard` container:
 
 ```bash
-git clone https://github.com/Richailo/ShiroBird.git
+git clone --branch v0.1.0-rc.1 --depth 1 https://github.com/Richailo/ShiroBird.git
 cd ShiroBird
-sudo bash scripts/install.sh
+sudo SHIROBIRD_INSTALL_MODE=pull bash scripts/install-release.sh
 ```
+
+[Download the GitHub release](https://github.com/Richailo/ShiroBird/releases/tag/v0.1.0-rc.1) or see [Docker / Portainer setup, security and rollback](docs/docker-release.md). The installer refuses to replace an existing ShiroBird container; migrations require a separate backup and upgrade procedure.
 
 The installer automatically:
 - Detects NetBird Dashboard and its Docker network.
@@ -46,12 +48,7 @@ The same installer falls back to standalone mode on `127.0.0.1:8666` and retains
 
 ## Upgrade and uninstall
 
-```bash
-git pull --ff-only
-sudo bash scripts/install.sh
-```
-
-The NetBird installation remains untouched. Roll back the dashboard proxy to port 8080 before removing the bridge. Full [rollback instructions](docs/netbird-tab.md).
+Back up `.env` and `data/` before changing a running deployment. The release installer deliberately does not overwrite an existing ShiroBird container. Consult [Docker release update and rollback instructions](docs/docker-release.md) or [NetBird dashboard rollback](docs/netbird-tab.md); to detach ShiroBird, restore the dashboard reverse proxy upstream to port 8080.
 
 ## Security and limitations
 
@@ -77,7 +74,8 @@ Install the optional sensor on each authorized Windows peer from the `windows/` 
 
 ## Docker release / Portainer
 
-A four-image release candidate (0.1.0-rc.1) with versioned Compose files,
-a non-destructive installer, GHCR publishing workflow and offline image export
-is described in [Docker release](docs/docker-release.md). The repository images
-must be published before remote pull; local builds work without a registry.
+Four public versioned images for Linux AMD64 and ARM64 are published on GHCR for
+[ShiroBird 0.1.0-rc.1 (pre-release)](https://github.com/Richailo/ShiroBird/releases/tag/v0.1.0-rc.1).
+The [Docker release guide](docs/docker-release.md) covers pull-mode installation,
+NetBird integration, Portainer, offline images, backups and rollback.
+ShiroBird is not a Docker Official Image or an official NetBird product.

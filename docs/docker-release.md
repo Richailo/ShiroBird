@@ -1,4 +1,4 @@
-# ShiroBird — produkcyjne obrazy Docker (wersja 0.1.0-rc.1)
+# ShiroBird — publiczne obrazy Docker (wersja testowa 0.1.0-rc.1)
 
 Wydanie składa się z czterech niezależnych obrazów:
 - `ghcr.io/richailo/shirobird:0.1.0-rc.1` — panel i API;
@@ -6,9 +6,11 @@ Wydanie składa się z czterech niezależnych obrazów:
 - `ghcr.io/richailo/shirobird-bridge:0.1.0-rc.1` — mostek do oficjalnego NetBird Dashboard;
 - `ghcr.io/richailo/shirobird-native-flow:0.1.0-rc.1` — opcjonalny odbiornik ruchu.
 
-To nazwy DOCELOWE. Obrazy są zbudowane lokalnie. Pojawią się w GHCR dopiero po
-przesłaniu tych plików do repozytorium i opublikowaniu tagu `v0.1.0-rc.1`.
-Nie są częścią programu Docker Official Images ani oficjalnego produktu NetBird.
+Wszystkie cztery obrazy zostały opublikowane w GHCR i są dostępne publicznie
+bez logowania, w architekturach **linux/amd64** i **linux/arm64**.
+[Wydanie v0.1.0-rc.1](https://github.com/Richailo/ShiroBird/releases/tag/v0.1.0-rc.1)
+ma status **Pre-release**, nie jest wydaniem stabilnym. ShiroBird nie należy do
+programu Docker Official Images ani do oficjalnych produktów NetBird.
 
 ## Instalacja na nowym serwerze
 
@@ -16,14 +18,16 @@ Wymagania: Docker Engine, Compose v2, openssl; istniejący self-hosted NetBird
 w kontenerach `netbird-dashboard` i `netbird-server` dla wersji zintegrowanej.
 
 ```bash
-git clone https://github.com/Richailo/ShiroBird.git
+git clone --branch v0.1.0-rc.1 --depth 1 https://github.com/Richailo/ShiroBird.git
 cd ShiroBird
-sudo SHIROBIRD_INSTALL_MODE=build bash scripts/install-release.sh
+sudo SHIROBIRD_INSTALL_MODE=pull bash scripts/install-release.sh
 ```
 
-Tryb build nie wymaga wcześniejszej publikacji obrazów. Po udostępnieniu ich w
-GHCR ustaw `SHIROBIRD_INSTALL_MODE=pull`. Skrypt wykrywa NetBird, generuje
-dwa losowe sekrety, zachowuje dane w `./data` i NIE dotyka kontenerów NetBird.
+Tryb `pull` pobiera gotowe obrazy GHCR. Alternatywnie `SHIROBIRD_INSTALL_MODE=build`
+buduje je lokalnie. Skrypt wykrywa istniejący NetBird, generuje dwa losowe sekrety,
+zachowuje dane w `./data` i **nie modyfikuje kontenerów NetBird**. Nie uruchamiaj
+go w katalogu istniejącej instalacji ShiroBird — instalator celowo odmawia nadpisania.
+Nie kopiuj `.env.example` do `.env` bez zastąpienia przykładowych tokenów.
 
 ## NetBird / Nginx Proxy Manager
 
@@ -41,7 +45,7 @@ Dla samego panelu: `compose.release.yaml`.
 Zintegrowany NetBird: `compose.release.yaml` i `compose.release.netbird.yaml`.
 Do lokalnego budowania dodaj odpowiednio `compose.release.build.yaml`
 oraz `compose.release.build.netbird.yaml`.
-W Portainerze stosuj wersję zdalną (GHCR) dopiero po opublikowaniu obrazów.
+W Portainerze użyj publicznych obrazów GHCR z przypiętym tagiem `0.1.0-rc.1`.
 Wymagane są plik `.env` z unikalnymi sekretami oraz katalog `./data`
 z właścicielem UID 65532. Wszystkie obrazy i tagi wersjonuj łącznie.
 
@@ -73,8 +77,8 @@ na oryginalny upstream 8080. Nie usuwaj wolumenów podczas rollbacku.
 
 ## Publikacja własnego wydania
 
-Po zsynchronizowaniu kodu z repozytorium GitHub utwórz podpisany tag,
-np. `git tag -s v0.1.0-rc.1 && git push origin v0.1.0-rc.1`.
+Dla **kolejnej** wersji utwórz nowy tag (nie używaj ponownie `v0.1.0-rc.1`),
+np. `git tag -a v0.1.0-rc.2 -m 'ShiroBird RC2' && git push origin v0.1.0-rc.2`.
 Workflow `.github/workflows/publish-docker.yml` testuje projekt i publikuje
 obrazy linux/amd64 i linux/arm64 do GitHub Container Registry, używając
 `GITHUB_TOKEN` (repozytorium wymaga uprawnienia Packages: write).
@@ -94,12 +98,21 @@ nadaje automatycznie oznaczenia `Docker Official Image`.
 
 ## Instalacja offline z archiwum obrazów (Linux amd64)
 
+Pobierz trzy załączniki z [GitHub Release](https://github.com/Richailo/ShiroBird/releases/tag/v0.1.0-rc.1)
+do podkatalogu `releases/` na docelowym serwerze (lub przenieś je tam offline).
+
 ```bash
-mkdir ShiroBird && tar -xzf shirobird-docker-0.1.0-rc.1-src.tar.gz -C ShiroBird
+mkdir -p shirobird-offline/releases
+cd shirobird-offline
+# Umieść tu pobrane pliki: releases/shirobird-*.tar.gz oraz releases/shirobird-0.1.0-rc.1.sha256
+sha256sum -c releases/shirobird-0.1.0-rc.1.sha256
+mkdir ShiroBird
+tar -xzf releases/shirobird-docker-0.1.0-rc.1-src.tar.gz -C ShiroBird
+gzip -dc releases/shirobird-images-0.1.0-rc.1-linux-amd64.tar.gz | docker load
 cd ShiroBird
-gzip -dc ../shirobird-images-0.1.0-rc.1-linux-amd64.tar.gz | docker load
 sudo SHIROBIRD_INSTALL_MODE=load bash scripts/install-release.sh
 ```
 
-Archiwum źródeł jest spakowane bez katalogu nadrzędnego, dlatego rozpakuj
-je do pustego katalogu ShiroBird. W trybie load nie ma pobierania ani budowania.
+Archiwum źródeł nie ma nadrzędnego katalogu. W trybie `load` Docker
+korzysta z lokalnie załadowanych obrazów, bez pobierania i bez budowania.
+Archiwum obrazów offline jest przeznaczone tylko dla Linux AMD64.
