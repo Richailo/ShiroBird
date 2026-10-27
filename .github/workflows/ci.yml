@@ -38,25 +38,25 @@ jobs:
             if curl -fsS --max-time 2 http://127.0.0.1:8082/shirobird/healthz; then break; fi
             sleep 2
           done
-          curl -fsS http://127.0.0.1:8082/ | grep -q 'shirobird-integration/bridge.js'
-          curl -fsS http://127.0.0.1:8082/shirobird-integration/bridge.js | grep -q 'left-navigation-item'
-          curl -fsS http://127.0.0.1:8082/shirobird-integration/bridge.js | grep -q 'Traffic Flow'
-          curl -fsS http://127.0.0.1:8082/shirobird-integration/bridge.js | grep -q 'SIEM Integration'
-          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=siem-integration' | grep -q 'id="siem-view"'
+          curl -fsS http://127.0.0.1:8082/ | grep -F 'shirobird-integration/bridge.js'
+          curl -fsS http://127.0.0.1:8082/shirobird-integration/bridge.js | grep -F 'left-navigation-item'
+          curl -fsS http://127.0.0.1:8082/shirobird-integration/bridge.js | grep -F 'Traffic Flow'
+          curl -fsS http://127.0.0.1:8082/shirobird-integration/bridge.js | grep -F 'SIEM Integration'
+          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=siem-integration' | grep -F 'id="siem-view"'
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/api/stats)" = "401"
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/api/siem/status)" = "401"
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/api/traffic/analytics)" = "401"
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/api/traffic/native?filtered=1)" = "401"
-          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=traffic-flow' | grep -q 'id="native-stream-card"'
-          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=traffic-flow' | grep -q 'id="native-page-size"'
+          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=traffic-flow' | grep -F 'id="native-stream-card"'
+          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=traffic-flow' | grep -F 'id="native-page-size"'
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/api/traffic/sensors)" = "401"
-          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=traffic-flow' | grep -q 'id="native-stat-total"'
-          ! curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=traffic-flow' | grep -q 'Aggregated traffic flows'
-          curl -fsS http://127.0.0.1:8082/shirobird/icons/windows.svg | grep -q '<svg'
-          curl -fsS http://127.0.0.1:8082/shirobird/icons/linux.svg | grep -q '<svg'
+          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=traffic-flow' | grep -F 'id="native-stat-total"'
+          ! curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=traffic-flow' | grep -F 'Aggregated traffic flows'
+          curl -fsS http://127.0.0.1:8082/shirobird/icons/windows.svg | grep -F '<svg'
+          curl -fsS http://127.0.0.1:8082/shirobird/icons/linux.svg | grep -F '<svg'
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/icons/no-such-icon.svg)" = "404"
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8082/shirobird/api/siem/syslog)" = "401"
-          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=siem-integration' | grep -q 'id="syslog-form"'
+          curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=siem-integration' | grep -F 'id="syslog-form"'
           curl -fsS -D /tmp/shirobird-headers -o /dev/null http://127.0.0.1:8082/shirobird/
           grep -qi '^X-Frame-Options: SAMEORIGIN' /tmp/shirobird-headers
           test "$(curl -fsS http://127.0.0.1:8082/ | grep -o 'shirobird-integration/bridge.js' | wc -l)" -eq 1
