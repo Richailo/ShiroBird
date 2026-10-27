@@ -54,7 +54,7 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/api/traffic/analytics)" = "401"
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/api/traffic/native?filtered=1)" = "401"
           curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=traffic-flow' -o /tmp/shirobird-smoke-5.txt
-          grep -Fq 'id="native-stream-card"' /tmp/shirobird-smoke-5.txt || { echo "::error::Dashboard response missing expected text"; head -c 500 /tmp/shirobird-smoke-5.txt; exit 1; }
+          if grep -Fq 'id="native-stream-card"' /tmp/shirobird-smoke-5.txt; then echo "::error::Removed native stream card reappeared"; exit 1; fi
           curl -fsS 'http://127.0.0.1:8082/shirobird/?embedded=1&view=traffic-flow' -o /tmp/shirobird-smoke-6.txt
           grep -Fq 'id="native-page-size"' /tmp/shirobird-smoke-6.txt || { echo "::error::Dashboard response missing expected text"; head -c 500 /tmp/shirobird-smoke-6.txt; exit 1; }
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/shirobird/api/traffic/sensors)" = "401"
@@ -75,11 +75,11 @@ jobs:
           test "$(curl -fsS http://127.0.0.1:8082/ | grep -o 'shirobird-integration/bridge.js' | wc -l)" -eq 1
       - name: Bridge logs if failed
         if: failure()
-        run: docker compose -f compose.yaml -f compose.bridge.yaml logs --no-color || true
+        run: sudo docker compose -f compose.yaml -f compose.bridge.yaml logs --no-color || true
       - name: Clean up
         if: always()
         run: |
-          docker compose -f compose.yaml -f compose.bridge.yaml down || true
+          sudo docker compose -f compose.yaml -f compose.bridge.yaml down || true
           docker rm -f netbird-dashboard || true
           docker network rm netbird_netbird || true
 
